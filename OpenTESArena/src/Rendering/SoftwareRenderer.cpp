@@ -215,6 +215,9 @@ SoftwareRenderer::ShadingInfo::ShadingInfo(const std::vector<Double3> &skyPalett
 	// The "sliding window" of sky colors is backwards in the AM (horizon is latest in the palette)
 	// and forwards in the PM (horizon is earliest in the palette).
 	this->isAM = daytimePercent < 0.50;
+
+	this->isBlinking = false; // nothing is blinking by default, set only in draw functions
+
 	const int slideDirection = this->isAM ? -1 : 1;
 
 	// Get the real index (not the integer index) of the color for the current time as a
@@ -607,6 +610,8 @@ const double SoftwareRenderer::DOOR_MIN_VISIBLE = 0.10;
 const double SoftwareRenderer::SKY_GRADIENT_ANGLE = 30.0;
 const double SoftwareRenderer::DISTANT_CLOUDS_MAX_ANGLE = 25.0;
 const double SoftwareRenderer::TALL_PIXEL_RATIO = 1.20;
+
+int SoftwareRenderer::frames = 0;
 
 SoftwareRenderer::SoftwareRenderer()
 {
@@ -3287,7 +3292,14 @@ void SoftwareRenderer::drawTransparentPixels(int x, const DrawRange &drawRange, 
 				colorR += (fogColor.x - colorR) * fogPercent;
 				colorG += (fogColor.y - colorG) * fogPercent;
 				colorB += (fogColor.z - colorB) * fogPercent;
-				
+
+				if (shadingInfo.isBlinking)
+				{
+					colorR *= 1.5 + 0.5 * sin (yPercent + frames / 20.0);
+					colorG *= 1.5 + 0.5 * sin (yPercent + frames / 20.0);
+					colorB *= 1.5 + 0.5 * sin (yPercent + frames / 20.0);
+				}
+
 				// Clamp maximum (don't worry about negative values).
 				const double high = 1.0;
 				colorR = (colorR > high) ? high : colorR;
@@ -3545,6 +3557,13 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 	// either way, the drawing range should be contained within the projected range at the 
 	// sub-pixel level. This ensures that the vertical texture coordinate is always within 0->1.
 
+	const ShadingInfo doorShadingInfo = [shadingInfo]()
+	{
+		ShadingInfo dsi = shadingInfo;
+		dsi.isBlinking = true;
+		return dsi;
+	}();
+
 	const double wallU = [&farPoint, facing]()
 	{
 		const double uVal = [&farPoint, facing]()
@@ -3575,7 +3594,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 	const Double3 wallNormal = -VoxelData::getNormal(facing);
 
 	auto drawInitialVoxel = [x, voxelX, voxelZ, &camera, &ray, &wallNormal, &nearPoint,
-		&farPoint, nearZ, farZ, wallU, &shadingInfo, ceilingHeight, &openDoors, &voxelGrid,
+		&farPoint, nearZ, farZ, wallU, &shadingInfo, &doorShadingInfo, ceilingHeight, &openDoors, &voxelGrid,
 		&textures, &occlusion, &frame](int voxelY)
 	{
 		const uint16_t voxelID = voxelGrid.getVoxel(voxelX, voxelY, voxelZ);
@@ -3876,10 +3895,10 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					const auto drawRange = SoftwareRenderer::makeDrawRange(
 						doorTopPoint, doorBottomPoint, camera, frame);
-
+					
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						shadingInfo, occlusion, frame);
+						doorShadingInfo, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Sliding)
 				{
@@ -3897,7 +3916,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						shadingInfo, occlusion, frame);
+						doorShadingInfo, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Raising)
 				{
@@ -3922,7 +3941,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, vStart, Constants::JustBelowOne, hit.normal,
-						textures.at(doorData.id), shadingInfo, occlusion, frame);
+						textures.at(doorData.id), doorShadingInfo, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Splitting)
 				{
@@ -3940,14 +3959,14 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						shadingInfo, occlusion, frame);
+						doorShadingInfo, occlusion, frame);
 				}
 			}
 		}
 	};
 
 	auto drawInitialVoxelBelow = [x, voxelX, voxelZ, &camera, &ray, &wallNormal, &nearPoint,
-		&farPoint, nearZ, farZ, wallU, &shadingInfo, ceilingHeight, &openDoors, &voxelGrid,
+		&farPoint, nearZ, farZ, wallU, &shadingInfo, &doorShadingInfo, ceilingHeight, &openDoors, &voxelGrid,
 		&textures, &occlusion, &frame](int voxelY)
 	{
 		const uint16_t voxelID = voxelGrid.getVoxel(voxelX, voxelY, voxelZ);
@@ -4230,7 +4249,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						shadingInfo, occlusion, frame);
+						doorShadingInfo, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Sliding)
 				{
@@ -4248,7 +4267,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						shadingInfo, occlusion, frame);
+						doorShadingInfo, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Raising)
 				{
@@ -4273,7 +4292,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, vStart, Constants::JustBelowOne, hit.normal,
-						textures.at(doorData.id), shadingInfo, occlusion, frame);
+						textures.at(doorData.id), doorShadingInfo, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Splitting)
 				{
@@ -4291,14 +4310,14 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						shadingInfo, occlusion, frame);
+						doorShadingInfo, occlusion, frame);
 				}
 			}
 		}
 	};
 
 	auto drawInitialVoxelAbove = [x, voxelX, voxelZ, &camera, &ray, &wallNormal, &nearPoint,
-		&farPoint, nearZ, farZ, wallU, &shadingInfo, ceilingHeight, &openDoors, &voxelGrid,
+		&farPoint, nearZ, farZ, wallU, &shadingInfo, &doorShadingInfo, ceilingHeight, &openDoors, &voxelGrid,
 		&textures, &occlusion, &frame](int voxelY)
 	{
 		const uint16_t voxelID = voxelGrid.getVoxel(voxelX, voxelY, voxelZ);
@@ -4524,7 +4543,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						shadingInfo, occlusion, frame);
+						doorShadingInfo, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Sliding)
 				{
@@ -4542,7 +4561,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						shadingInfo, occlusion, frame);
+						doorShadingInfo, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Raising)
 				{
@@ -4567,7 +4586,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, vStart, Constants::JustBelowOne, hit.normal,
-						textures.at(doorData.id), shadingInfo, occlusion, frame);
+						textures.at(doorData.id), doorShadingInfo, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Splitting)
 				{
@@ -4585,7 +4604,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						shadingInfo, occlusion, frame);
+						doorShadingInfo, occlusion, frame);
 				}
 			}
 		}
@@ -4631,6 +4650,14 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 	// Horizontal texture coordinate for the wall, potentially shared between multiple voxels
 	// in this voxel column.
+	
+	const ShadingInfo doorShadingInfo = [shadingInfo]()
+	{
+		ShadingInfo dsi = shadingInfo;
+		dsi.isBlinking = true;
+		return dsi;
+	}();
+	
 	const double wallU = [&nearPoint, facing]()
 	{
 		const double uVal = [&nearPoint, facing]()
@@ -4661,7 +4688,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 	const Double3 wallNormal = VoxelData::getNormal(facing);
 
 	auto drawVoxel = [x, voxelX, voxelZ, &camera, &ray, facing, &wallNormal, &nearPoint,
-		&farPoint, nearZ, farZ, wallU, &shadingInfo, ceilingHeight, &openDoors, &voxelGrid,
+		&farPoint, nearZ, farZ, wallU, &shadingInfo, &doorShadingInfo, ceilingHeight, &openDoors, &voxelGrid,
 		&textures, &occlusion, &frame](int voxelY)
 	{
 		const uint16_t voxelID = voxelGrid.getVoxel(voxelX, voxelY, voxelZ);
@@ -4979,7 +5006,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						shadingInfo, occlusion, frame);
+						doorShadingInfo, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Sliding)
 				{
@@ -4997,7 +5024,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, hit.u, 0.0,
 						Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						shadingInfo, occlusion, frame);
+						doorShadingInfo, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Raising)
 				{
@@ -5021,7 +5048,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 					const double vStart = raisedAmount / voxelHeight;
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, hit.u, vStart,
-						Constants::JustBelowOne, hit.normal, textures.at(doorData.id), shadingInfo,
+						Constants::JustBelowOne, hit.normal, textures.at(doorData.id), doorShadingInfo,
 						occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Splitting)
@@ -5040,14 +5067,14 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, hit.u, 0.0,
 						Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						shadingInfo, occlusion, frame);
+						doorShadingInfo, occlusion, frame);
 				}
 			}
 		}
 	};
 
 	auto drawVoxelBelow = [x, voxelX, voxelZ, &camera, &ray, facing, &wallNormal, &nearPoint,
-		&farPoint, nearZ, farZ, wallU, &shadingInfo, ceilingHeight, &openDoors, &voxelGrid,
+		&farPoint, nearZ, farZ, wallU, &shadingInfo, &doorShadingInfo, ceilingHeight, &openDoors, &voxelGrid,
 		&textures, &occlusion, &frame](int voxelY)
 	{
 		const uint16_t voxelID = voxelGrid.getVoxel(voxelX, voxelY, voxelZ);
@@ -5372,7 +5399,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						shadingInfo, occlusion, frame);
+						doorShadingInfo, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Sliding)
 				{
@@ -5390,7 +5417,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, hit.u, 0.0,
 						Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						shadingInfo, occlusion, frame);
+						doorShadingInfo, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Raising)
 				{
@@ -5414,7 +5441,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 					const double vStart = raisedAmount / voxelHeight;
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, hit.u, vStart,
-						Constants::JustBelowOne, hit.normal, textures.at(doorData.id), shadingInfo,
+						Constants::JustBelowOne, hit.normal, textures.at(doorData.id), doorShadingInfo,
 						occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Splitting)
@@ -5433,14 +5460,14 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, hit.u, 0.0,
 						Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						shadingInfo, occlusion, frame);
+						doorShadingInfo, occlusion, frame);
 				}
 			}
 		}
 	};
 
 	auto drawVoxelAbove = [x, voxelX, voxelZ, &camera, &ray, facing, &wallNormal, &nearPoint,
-		&farPoint, nearZ, farZ, wallU, &shadingInfo, ceilingHeight, &openDoors, &voxelGrid,
+		&farPoint, nearZ, farZ, wallU, &shadingInfo, &doorShadingInfo, ceilingHeight, &openDoors, &voxelGrid,
 		&textures, &occlusion, &frame](int voxelY)
 	{
 		const uint16_t voxelID = voxelGrid.getVoxel(voxelX, voxelY, voxelZ);
@@ -5681,7 +5708,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						shadingInfo, occlusion, frame);
+						doorShadingInfo, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Sliding)
 				{
@@ -5699,7 +5726,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, hit.u, 0.0,
 						Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						shadingInfo, occlusion, frame);
+						doorShadingInfo, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Raising)
 				{
@@ -5723,7 +5750,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 					const double vStart = raisedAmount / voxelHeight;
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, hit.u, vStart,
-						Constants::JustBelowOne, hit.normal, textures.at(doorData.id), shadingInfo,
+						Constants::JustBelowOne, hit.normal, textures.at(doorData.id), doorShadingInfo,
 						occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Splitting)
@@ -5742,7 +5769,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, hit.u, 0.0,
 						Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						shadingInfo, occlusion, frame);
+						doorShadingInfo, occlusion, frame);
 				}
 			}
 		}
@@ -6442,6 +6469,9 @@ void SoftwareRenderer::render(const Double3 &eye, const Double3 &direction, doub
 	// Projected Y range of the sky gradient.
 	double gradientProjYTop, gradientProjYBottom;
 	SoftwareRenderer::getSkyGradientProjectedYRange(camera, gradientProjYTop, gradientProjYBottom);
+
+	// update frame count
+	frames++;
 
 	// Set all the render-thread-specific shared data for this frame.
 	this->threadData.init(static_cast<int>(this->renderThreads.size()),

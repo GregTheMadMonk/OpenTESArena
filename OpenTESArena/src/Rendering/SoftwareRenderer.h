@@ -182,6 +182,9 @@ private:
 		// Returns whether the current clock time is before noon.
 		bool isAM;
 
+		// Blink doors a bit (and other usable things maybe?)
+		bool isBlinking;
+
 		ShadingInfo(const std::vector<Double3> &skyPalette, double daytimePercent, double latitude,
 			double ambient, double fogDistance);
 
@@ -644,6 +647,8 @@ private:
 	// and terminate. Non-thread-data parameters are for start/end column/row for each thread.
 	static void renderThreadLoop(RenderThreadData &threadData, int threadIndex, int startX,
 		int endX, int startY, int endY);
+
+	static int frames;	// used when rendering dymanic materials
 public:
 	SoftwareRenderer();
 	~SoftwareRenderer();
