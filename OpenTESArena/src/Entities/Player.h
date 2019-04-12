@@ -16,7 +16,7 @@ class Player
 private:
 	static const double STEPPING_HEIGHT; // Allowed change in height for stepping on stairs.
 	static const double JUMP_VELOCITY; // Instantaneous change in Y velocity when jumping.
-	
+
 	// Magnitude of -Y acceleration in the air.
 	static const double GRAVITY;
 
@@ -31,6 +31,7 @@ private:
 	Camera3D camera;
 	Double3 velocity;
 	double maxWalkSpeed, maxRunSpeed; // Eventually a function of 'Speed'.
+	double playerSize;
 	WeaponAnimation weaponAnimation;
 	// Other stats...
 
@@ -100,12 +101,12 @@ public:
 	// Sets velocity vector to zero. Intended for stopping the player after level transitions.
 	void setVelocityToZero();
 
-	// Changes the velocity (as a force) given a normalized direction, magnitude, 
+	// Changes the velocity (as a force) given a normalized direction, magnitude,
 	// and delta time, as well as whether the player is running.
 	void accelerate(const Double3 &direction, double magnitude,
 		bool isRunning, double dt);
 
-	// Changes the velocity instantly. Intended for instantaneous acceleration like 
+	// Changes the velocity instantly. Intended for instantaneous acceleration like
 	// jumping.
 	void accelerateInstant(const Double3 &direction, double magnitude);
 

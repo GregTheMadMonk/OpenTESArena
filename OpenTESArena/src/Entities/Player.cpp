@@ -33,7 +33,8 @@ Player::Player(const std::string &displayName, GenderName gender, int raceID,
 	double maxRunSpeed, int weaponID, const ExeData &exeData)
 	: displayName(displayName), gender(gender), raceID(raceID), charClass(charClass),
 	portraitID(portraitID), camera(position, direction), velocity(velocity),
-	maxWalkSpeed(maxWalkSpeed), maxRunSpeed(maxRunSpeed), weaponAnimation(weaponID, exeData) { }
+	maxWalkSpeed(maxWalkSpeed), maxRunSpeed(maxRunSpeed), weaponAnimation(weaponID, exeData),
+	playerSize(0.25) { }
 
 const Double3 &Player::getPosition() const
 {
@@ -223,9 +224,16 @@ void Player::handleCollision(const WorldData &worldData, double dt)
 		this->getFeetY() / activeLevel.getCeilingHeight()));
 
 	// Get the voxel data for each voxel the player would touch on each axis.
+	auto sign = [](const double &vel)
+	{
+		if (vel > 0) return 1;
+		if (vel < 0) return -1;
+		return 0;
+	};
+
 	const Int3 playerVoxel = this->getVoxelPosition();
 	const Int3 xVoxel(
-		static_cast<int>(std::floor(this->camera.position.x + (this->velocity.x * dt))),
+		static_cast<int>(std::floor(this->camera.position.x + (this->velocity.x * dt) + playerSize * sign(this->velocity.x))),
 		feetVoxelY,
 		playerVoxel.z);
 	const Int3 yVoxel(
@@ -235,11 +243,17 @@ void Player::handleCollision(const WorldData &worldData, double dt)
 	const Int3 zVoxel(
 		playerVoxel.x,
 		feetVoxelY,
-		static_cast<int>(std::floor(this->camera.position.z + (this->velocity.z * dt))));
+		static_cast<int>(std::floor(this->camera.position.z + (this->velocity.z * dt) + playerSize * sign(this->velocity.z))));
+	const Int3 xzCornerVoxel(
+		xVoxel.x,
+		feetVoxelY,
+		zVoxel.z);
+
 
 	const VoxelData &xVoxelData = getVoxelData(xVoxel);
 	const VoxelData &yVoxelData = getVoxelData(yVoxel);
 	const VoxelData &zVoxelData = getVoxelData(zVoxel);
+	const VoxelData &xzCornerVoxelData = getVoxelData(xzCornerVoxel);
 
 	// Check horizontal collisions.
 
@@ -294,7 +308,7 @@ void Player::handleCollision(const WorldData &worldData, double dt)
 			}();
 
 			// -- Temporary hack for "on voxel enter" transitions --
-			// - @todo: replace with "on would enter voxel" event and near facing check.			
+			// - @todo: replace with "on would enter voxel" event and near facing check.
 			const bool isLevelUpDown = [&voxelData]()
 			{
 				if (voxelData.dataType == VoxelDataType::Wall)
@@ -313,20 +327,37 @@ void Player::handleCollision(const WorldData &worldData, double dt)
 		}
 	};
 
+	int sideThatHit = 0; // 0 = none, 1 = x, 2 = z, 3 = both
+
 	if (wouldCollideWithVoxel(xVoxel, xVoxelData))
 	{
 		this->velocity.x = 0.0;
+
+		sideThatHit = 1;
 	}
 
 	if (wouldCollideWithVoxel(zVoxel, zVoxelData))
 	{
 		this->velocity.z = 0.0;
+
+		sideThatHit += 2;
+	}
+
+	if (wouldCollideWithVoxel(xzCornerVoxel, xzCornerVoxelData))
+	{
+		if (sideThatHit == 1) this->velocity.x = 0.0;
+		if (sideThatHit >= 2) this->velocity.z = 0.0;
+		if (sideThatHit == 0)
+		{	// we hit just the corner
+			this->velocity.x = 0.0;
+			this->velocity.z = 0.0;
+		}
 	}
 
 	this->velocity.y = 0.0;
 	// -- end hack --
 
-	// @todo: use an axis-aligned bounding box or cylinder instead of a point?
+	// @todo: rotate the box or make a cylinder? Seems fine as it is now
 }
 
 void Player::setVelocityToZero()
@@ -350,7 +381,7 @@ void Player::accelerate(const Double3 &direction, double magnitude,
 		this->velocity = newVelocity;
 	}
 
-	// Don't let the horizontal velocity be greater than the max speed for the 
+	// Don't let the horizontal velocity be greater than the max speed for the
 	// current movement state (i.e., walking/running).
 	double maxSpeed = isRunning ? this->maxRunSpeed : this->maxWalkSpeed;
 	Double2 velocityXZ(this->velocity.x, this->velocity.z);
@@ -359,7 +390,7 @@ void Player::accelerate(const Double3 &direction, double magnitude,
 		velocityXZ = velocityXZ.normalized() * maxSpeed;
 	}
 
-	// If the velocity is near zero, set it to zero. This fixes a problem where 
+	// If the velocity is near zero, set it to zero. This fixes a problem where
 	// the velocity could remain at a tiny magnitude and never reach zero.
 	if (this->velocity.length() < 0.001)
 	{
@@ -370,7 +401,7 @@ void Player::accelerate(const Double3 &direction, double magnitude,
 void Player::accelerateInstant(const Double3 &direction, double magnitude)
 {
 	assert(direction.isNormalized());
-	
+
 	const Double3 additiveVelocity = direction * magnitude;
 
 	if (std::isfinite(additiveVelocity.length()))
