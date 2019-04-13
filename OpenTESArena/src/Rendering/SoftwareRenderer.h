@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "RenderMaterial.h"
 #include "../Math/Matrix4.h"
 #include "../Math/Vector2.h"
 #include "../Math/Vector3.h"
@@ -181,9 +182,6 @@ private:
 
 		// Returns whether the current clock time is before noon.
 		bool isAM;
-
-		// Blink doors a bit (and other usable things maybe?)
-		bool isBlinking;
 
 		ShadingInfo(const std::vector<Double3> &skyPalette, double daytimePercent, double latitude,
 			double ambient, double fogDistance);
@@ -406,6 +404,10 @@ private:
 	// Max angle of distant clouds above the horizon, in degrees.
 	static const double DISTANT_CLOUDS_MAX_ANGLE;
 
+	// material declaration goes here
+	static RenderMaterial defaultMaterial;
+	static RenderMaterial usableMaterial;
+
 	std::vector<double> depthBuffer; // 2D buffer, mostly consists of depth in the XZ plane.
 	std::vector<OcclusionData> occlusion; // Min and max Y for each column.
 	std::unordered_map<int, Flat> flats; // All flats in world.
@@ -551,43 +553,46 @@ private:
 	// Draws a column of pixels with no perspective or transparency.
 	static void drawPixels(int x, const DrawRange &drawRange, double depth, double u,
 		double vStart, double vEnd, const Double3 &normal, const VoxelTexture &texture,
-		const ShadingInfo &shadingInfo, OcclusionData &occlusion, const FrameView &frame);
+		const ShadingInfo &shadingInfo, const RenderMaterial &material,
+		OcclusionData &occlusion, const FrameView &frame);
 
 	// Draws a column of pixels with perspective but no transparency. The pixel drawing order is 
 	// top to bottom, so the start and end values should be passed with that in mind.
 	static void drawPerspectivePixels(int x, const DrawRange &drawRange, const Double2 &startPoint,
 		const Double2 &endPoint, double depthStart, double depthEnd, const Double3 &normal,
-		const VoxelTexture &texture, const ShadingInfo &shadingInfo, OcclusionData &occlusion,
-		const FrameView &frame);
+		const VoxelTexture &texture, const ShadingInfo &shadingInfo, const RenderMaterial &material,
+		OcclusionData &occlusion, const FrameView &frame);
 
 	// Draws a column of pixels with transparency but no perspective.
 	static void drawTransparentPixels(int x, const DrawRange &drawRange, double depth, double u,
 		double vStart, double vEnd, const Double3 &normal, const VoxelTexture &texture,
-		const ShadingInfo &shadingInfo, const OcclusionData &occlusion, const FrameView &frame);
+		const ShadingInfo &shadingInfo, const RenderMaterial &material, 
+		const OcclusionData &occlusion, const FrameView &frame);
 
 	// Draws a column of pixels for a distant sky object (mountain, cloud, etc.). The 'emissive'
 	// parameter is for animated objects like volcanoes.
 	static void drawDistantPixels(int x, const DrawRange &drawRange, double u, double vStart,
 		double vEnd, const SkyTexture &texture, bool emissive, const ShadingInfo &shadingInfo,
-		const FrameView &frame);
+		const RenderMaterial &material, const FrameView &frame);
 
 	// Draws a column of pixels for a moon. This is its own pixel-rendering method because of
 	// the unique method of shading required for moons.
 	static void drawMoonPixels(int x, const DrawRange &drawRange, double u, double vStart,
 		double vEnd, const SkyTexture &texture, const ShadingInfo &shadingInfo,
-		const FrameView &frame);
+		const RenderMaterial &material, const FrameView &frame);
 
 	// Draws a column of pixels for a star. This is its own pixel-rendering method because of
 	// the unique method of shading required for stars.
 	static void drawStarPixels(int x, const DrawRange &drawRange, double u, double vStart,
 		double vEnd, const SkyTexture &texture, const std::vector<Double3> &skyGradientRowCache,
-		const ShadingInfo &shadingInfo, const FrameView &frame);
+		const ShadingInfo &shadingInfo, const RenderMaterial &material, const FrameView &frame);
 
 	// Manages drawing voxels in the column that the player is in.
 	static void drawInitialVoxelColumn(int x, int voxelX, int voxelZ, const Camera &camera,
 		const Ray &ray, VoxelData::Facing facing, const Double2 &nearPoint,
 		const Double2 &farPoint, double nearZ, double farZ, const ShadingInfo &shadingInfo,
-		double ceilingHeight, const std::vector<LevelData::DoorState> &openDoors,
+		const RenderMaterial &material,  double ceilingHeight, 
+		const std::vector<LevelData::DoorState> &openDoors,
 		const VoxelGrid &voxelGrid, const std::vector<VoxelTexture> &textures,
 		OcclusionData &occlusion, const FrameView &frame);
 
@@ -595,7 +600,8 @@ private:
 	static void drawVoxelColumn(int x, int voxelX, int voxelZ, const Camera &camera,
 		const Ray &ray, VoxelData::Facing facing, const Double2 &nearPoint,
 		const Double2 &farPoint, double nearZ, double farZ, const ShadingInfo &shadingInfo,
-		double ceilingHeight, const std::vector<LevelData::DoorState> &openDoors,
+		const RenderMaterial &material, double ceilingHeight, 
+		const std::vector<LevelData::DoorState> &openDoors,
 		const VoxelGrid &voxelGrid, const std::vector<VoxelTexture> &textures,
 		OcclusionData &occlusion, const FrameView &frame);
 
@@ -603,7 +609,7 @@ private:
 	// X value is exclusive.
 	static void drawFlat(int startX, int endX, const Flat::Frame &flatFrame, 
 		const Double3 &normal, bool flipped, const Double2 &eye, const ShadingInfo &shadingInfo, 
-		const FlatTexture &texture, const FrameView &frame);
+		const RenderMaterial &material, const FlatTexture &texture, const FrameView &frame);
 
 	// @todo: drawAlphaFlat(...), for flats with partial transparency.
 	// - Must be back to front.

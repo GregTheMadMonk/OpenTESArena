@@ -216,8 +216,6 @@ SoftwareRenderer::ShadingInfo::ShadingInfo(const std::vector<Double3> &skyPalett
 	// and forwards in the PM (horizon is earliest in the palette).
 	this->isAM = daytimePercent < 0.50;
 
-	this->isBlinking = false; // nothing is blinking by default, set only in draw functions
-
 	const int slideDirection = this->isAM ? -1 : 1;
 
 	// Get the real index (not the integer index) of the color for the current time as a
@@ -612,6 +610,19 @@ const double SoftwareRenderer::DISTANT_CLOUDS_MAX_ANGLE = 25.0;
 const double SoftwareRenderer::TALL_PIXEL_RATIO = 1.20;
 
 int SoftwareRenderer::frames = 0;
+
+RenderMaterial SoftwareRenderer::defaultMaterial = RenderMaterial(
+		[](const Double3 &baseColor, const Double2 &texCoord, const Double3 &worldPosition, const int &time)
+		{
+			return baseColor;
+		});
+RenderMaterial SoftwareRenderer::usableMaterial = RenderMaterial(
+		[](const Double3 &baseColor, const Double2 &texCoord, const Double3 &worldPosition, const int &time)
+		{
+			return Double3(baseColor.x * (1.5 + 0.5 * sin(texCoord.x + texCoord.y + time / 20.0)),
+					baseColor.y * (1.5 + 0.5 * sin(texCoord.x + texCoord.y + time / 20.0)),
+					baseColor.z * (1.5 + 0.5 * sin(texCoord.x + texCoord.y + time / 20.0)));
+		});
 
 SoftwareRenderer::SoftwareRenderer()
 {
@@ -3034,7 +3045,8 @@ bool SoftwareRenderer::findDoorIntersection(int voxelX, int voxelZ,
 
 void SoftwareRenderer::drawPixels(int x, const DrawRange &drawRange, double depth, double u,
 	double vStart, double vEnd, const Double3 &normal, const VoxelTexture &texture,
-	const ShadingInfo &shadingInfo, OcclusionData &occlusion, const FrameView &frame)
+	const ShadingInfo &shadingInfo, const RenderMaterial &material, OcclusionData &occlusion, 
+	const FrameView &frame)
 {
 	// Draw range values.
 	const double yProjStart = drawRange.yProjStart;
@@ -3050,7 +3062,7 @@ void SoftwareRenderer::drawPixels(int x, const DrawRange &drawRange, double dept
 	const double fogPercent = std::min(depth / shadingInfo.fogDistance, 1.0);
 
 	// Contribution from the sun.
-	const double lightNormalDot = std::max(0.0, shadingInfo.sunDirection.dot(normal));
+	const double lightNormalDot = std::max(0.0,shadingInfo.sunDirection.dot(normal));
 	const Double3 sunComponent = (shadingInfo.sunColor * lightNormalDot).clamped(
 		0.0, 1.0 - shadingInfo.ambient);
 
@@ -3107,10 +3119,15 @@ void SoftwareRenderer::drawPixels(int x, const DrawRange &drawRange, double dept
 			colorB = (colorB > high) ? high : colorB;
 
 			// Convert floats to integers.
-			const uint32_t colorRGB = static_cast<uint32_t>(
+			/*const uint32_t colorRGB = static_cast<uint32_t>(
 				((static_cast<uint8_t>(colorR * 255.0)) << 16) |
 				((static_cast<uint8_t>(colorG * 255.0)) << 8) |
-				((static_cast<uint8_t>(colorB * 255.0))));
+				((static_cast<uint8_t>(colorB * 255.0))));*/
+
+			const uint32_t colorRGB = material.shaded(Double3(colorR, colorG, colorB),
+									Double2(u, yPercent),
+									Double3(0.0, 0.0, 0.0), // @todo: add world position
+									frames);
 
 			frame.colorBuffer[index] = colorRGB;
 			frame.depthBuffer[index] = depth;
@@ -3121,7 +3138,7 @@ void SoftwareRenderer::drawPixels(int x, const DrawRange &drawRange, double dept
 void SoftwareRenderer::drawPerspectivePixels(int x, const DrawRange &drawRange,
 	const Double2 &startPoint, const Double2 &endPoint, double depthStart, double depthEnd,
 	const Double3 &normal, const VoxelTexture &texture, const ShadingInfo &shadingInfo,
-	OcclusionData &occlusion, const FrameView &frame)
+	const RenderMaterial &material, OcclusionData &occlusion, const FrameView &frame)
 {
 	// Draw range values.
 	const double yProjStart = drawRange.yProjStart;
@@ -3133,7 +3150,7 @@ void SoftwareRenderer::drawPerspectivePixels(int x, const DrawRange &drawRange,
 	const Double3 &fogColor = shadingInfo.getFogColor();
 
 	// Contribution from the sun.
-	const double lightNormalDot = std::max(0.0, shadingInfo.sunDirection.dot(normal));
+	const double lightNormalDot = std::max(0.0,shadingInfo.sunDirection.dot(normal));
 	const Double3 sunComponent = (shadingInfo.sunColor * lightNormalDot).clamped(
 		0.0, 1.0 - shadingInfo.ambient);
 
@@ -3214,10 +3231,15 @@ void SoftwareRenderer::drawPerspectivePixels(int x, const DrawRange &drawRange,
 			colorB = (colorB > high) ? high : colorB;
 
 			// Convert floats to integers.
-			const uint32_t colorRGB = static_cast<uint32_t>(
+			/*const uint32_t colorRGB = static_cast<uint32_t>(
 				((static_cast<uint8_t>(colorR * 255.0)) << 16) |
 				((static_cast<uint8_t>(colorG * 255.0)) << 8) |
-				((static_cast<uint8_t>(colorB * 255.0))));
+				((static_cast<uint8_t>(colorB * 255.0))));*/
+
+			const uint32_t colorRGB = material.shaded(Double3(colorR, colorG, colorB),
+									Double2(u, yPercent),
+									Double3(0.0, 0.0, 0.0), // @todo: add world position
+									frames);
 
 			frame.colorBuffer[index] = colorRGB;
 			frame.depthBuffer[index] = depth;
@@ -3227,7 +3249,7 @@ void SoftwareRenderer::drawPerspectivePixels(int x, const DrawRange &drawRange,
 
 void SoftwareRenderer::drawTransparentPixels(int x, const DrawRange &drawRange, double depth,
 	double u, double vStart, double vEnd, const Double3 &normal, const VoxelTexture &texture,
-	const ShadingInfo &shadingInfo, const OcclusionData &occlusion, const FrameView &frame)
+	const ShadingInfo &shadingInfo, const RenderMaterial &material, const OcclusionData &occlusion, const FrameView &frame)
 {
 	// Draw range values.
 	const double yProjStart = drawRange.yProjStart;
@@ -3243,7 +3265,7 @@ void SoftwareRenderer::drawTransparentPixels(int x, const DrawRange &drawRange, 
 	const double fogPercent = std::min(depth / shadingInfo.fogDistance, 1.0);
 
 	// Contribution from the sun.
-	const double lightNormalDot = std::max(0.0, shadingInfo.sunDirection.dot(normal));
+	const double lightNormalDot = std::max(0.0,shadingInfo.sunDirection.dot(normal));
 	const Double3 sunComponent = (shadingInfo.sunColor * lightNormalDot).clamped(
 		0.0, 1.0 - shadingInfo.ambient);
 
@@ -3293,12 +3315,12 @@ void SoftwareRenderer::drawTransparentPixels(int x, const DrawRange &drawRange, 
 				colorG += (fogColor.y - colorG) * fogPercent;
 				colorB += (fogColor.z - colorB) * fogPercent;
 
-				if (shadingInfo.isBlinking)
+				/*if (shadingInfo.isBlinking)
 				{
 					colorR *= 1.5 + 0.5 * sin (yPercent + frames / 20.0);
 					colorG *= 1.5 + 0.5 * sin (yPercent + frames / 20.0);
 					colorB *= 1.5 + 0.5 * sin (yPercent + frames / 20.0);
-				}
+				}*/
 
 				// Clamp maximum (don't worry about negative values).
 				const double high = 1.0;
@@ -3307,10 +3329,15 @@ void SoftwareRenderer::drawTransparentPixels(int x, const DrawRange &drawRange, 
 				colorB = (colorB > high) ? high : colorB;
 
 				// Convert floats to integers.
-				const uint32_t colorRGB = static_cast<uint32_t>(
+				/*const uint32_t colorRGB = static_cast<uint32_t>(
 					((static_cast<uint8_t>(colorR * 255.0)) << 16) |
 					((static_cast<uint8_t>(colorG * 255.0)) << 8) |
-					((static_cast<uint8_t>(colorB * 255.0))));
+					((static_cast<uint8_t>(colorB * 255.0))));*/
+
+				const uint32_t colorRGB = material.shaded(Double3(colorR, colorG, colorB),
+									Double2(u, yPercent),
+									Double3(0.0, 0.0, 0.0), // @todo: add world position
+									frames);
 
 				frame.colorBuffer[index] = colorRGB;
 				frame.depthBuffer[index] = depth;
@@ -3321,7 +3348,7 @@ void SoftwareRenderer::drawTransparentPixels(int x, const DrawRange &drawRange, 
 
 void SoftwareRenderer::drawDistantPixels(int x, const DrawRange &drawRange, double u,
 	double vStart, double vEnd, const SkyTexture &texture, bool emissive,
-	const ShadingInfo &shadingInfo, const FrameView &frame)
+	const ShadingInfo &shadingInfo, const RenderMaterial &material, const FrameView &frame)
 {
 	// Draw range values.
 	const double yProjStart = drawRange.yProjStart;
@@ -3368,10 +3395,15 @@ void SoftwareRenderer::drawDistantPixels(int x, const DrawRange &drawRange, doub
 			colorB = (colorB > high) ? high : colorB;
 
 			// Convert floats to integers.
-			const uint32_t colorRGB = static_cast<uint32_t>(
+			/*const uint32_t colorRGB = static_cast<uint32_t>(
 				((static_cast<uint8_t>(colorR * 255.0)) << 16) |
 				((static_cast<uint8_t>(colorG * 255.0)) << 8) |
-				((static_cast<uint8_t>(colorB * 255.0))));
+				((static_cast<uint8_t>(colorB * 255.0))));*/
+
+			const uint32_t colorRGB = material.shaded(Double3(colorR, colorG, colorB),
+									Double2(u, yPercent),
+									Double3(0.0, 0.0, 0.0), // @todo: add world position
+									frames);
 
 			frame.colorBuffer[index] = colorRGB;
 		}
@@ -3379,7 +3411,7 @@ void SoftwareRenderer::drawDistantPixels(int x, const DrawRange &drawRange, doub
 }
 
 void SoftwareRenderer::drawMoonPixels(int x, const DrawRange &drawRange, double u, double vStart,
-	double vEnd, const SkyTexture &texture, const ShadingInfo &shadingInfo, const FrameView &frame)
+	double vEnd, const SkyTexture &texture, const ShadingInfo &shadingInfo, const RenderMaterial &material, const FrameView &frame)
 {
 	// Draw range values.
 	const double yProjStart = drawRange.yProjStart;
@@ -3451,10 +3483,15 @@ void SoftwareRenderer::drawMoonPixels(int x, const DrawRange &drawRange, double 
 			colorB = (colorB > high) ? high : colorB;
 
 			// Convert floats to integers.
-			const uint32_t colorRGB = static_cast<uint32_t>(
+			/*const uint32_t colorRGB = static_cast<uint32_t>(
 				((static_cast<uint8_t>(colorR * 255.0)) << 16) |
 				((static_cast<uint8_t>(colorG * 255.0)) << 8) |
-				((static_cast<uint8_t>(colorB * 255.0))));
+				((static_cast<uint8_t>(colorB * 255.0))));*/
+
+			const uint32_t colorRGB = material.shaded(Double3(colorR, colorG, colorB),
+									Double2(u, yPercent),
+									Double3(0.0, 0.0, 0.0), // @todo: add world position
+									frames);
 
 			frame.colorBuffer[index] = colorRGB;
 		}
@@ -3463,7 +3500,7 @@ void SoftwareRenderer::drawMoonPixels(int x, const DrawRange &drawRange, double 
 
 void SoftwareRenderer::drawStarPixels(int x, const DrawRange &drawRange, double u, double vStart,
 	double vEnd, const SkyTexture &texture, const std::vector<Double3> &skyGradientRowCache,
-	const ShadingInfo &shadingInfo, const FrameView &frame)
+	const ShadingInfo &shadingInfo, const RenderMaterial &material, const FrameView &frame)
 {
 	// Draw range values.
 	const double yProjStart = drawRange.yProjStart;
@@ -3532,10 +3569,15 @@ void SoftwareRenderer::drawStarPixels(int x, const DrawRange &drawRange, double 
 				colorB = (colorB > high) ? high : colorB;
 
 				// Convert floats to integers.
-				const uint32_t colorRGB = static_cast<uint32_t>(
+				/*const uint32_t colorRGB = static_cast<uint32_t>(
 					((static_cast<uint8_t>(colorR * 255.0)) << 16) |
 					((static_cast<uint8_t>(colorG * 255.0)) << 8) |
-					((static_cast<uint8_t>(colorB * 255.0))));
+					((static_cast<uint8_t>(colorB * 255.0))));*/
+
+				const uint32_t colorRGB = material.shaded(Double3(colorR, colorG, colorB),
+									Double2(u, yPercent),
+									Double3(0.0, 0.0, 0.0), // @todo: add world position
+									frames);
 
 				frame.colorBuffer[index] = colorRGB;
 			}
@@ -3545,7 +3587,7 @@ void SoftwareRenderer::drawStarPixels(int x, const DrawRange &drawRange, double 
 
 void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, const Camera &camera,
 	const Ray &ray, VoxelData::Facing facing, const Double2 &nearPoint, const Double2 &farPoint,
-	double nearZ, double farZ, const ShadingInfo &shadingInfo, double ceilingHeight,
+	double nearZ, double farZ, const ShadingInfo &shadingInfo, const RenderMaterial &material, double ceilingHeight,
 	const std::vector<LevelData::DoorState> &openDoors, const VoxelGrid &voxelGrid,
 	const std::vector<VoxelTexture> &textures, OcclusionData &occlusion, const FrameView &frame)
 {
@@ -3556,13 +3598,6 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 	// of pixels. The clamping function depends on which side of the range is being clamped; 
 	// either way, the drawing range should be contained within the projected range at the 
 	// sub-pixel level. This ensures that the vertical texture coordinate is always within 0->1.
-
-	const ShadingInfo doorShadingInfo = [shadingInfo]()
-	{
-		ShadingInfo dsi = shadingInfo;
-		dsi.isBlinking = true;
-		return dsi;
-	}();
 
 	const double wallU = [&farPoint, facing]()
 	{
@@ -3594,7 +3629,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 	const Double3 wallNormal = -VoxelData::getNormal(facing);
 
 	auto drawInitialVoxel = [x, voxelX, voxelZ, &camera, &ray, &wallNormal, &nearPoint,
-		&farPoint, nearZ, farZ, wallU, &shadingInfo, &doorShadingInfo, ceilingHeight, &openDoors, &voxelGrid,
+		&farPoint, nearZ, farZ, wallU, &shadingInfo, ceilingHeight, &openDoors, &voxelGrid,
 		&textures, &occlusion, &frame](int voxelY)
 	{
 		const uint16_t voxelID = voxelGrid.getVoxel(voxelX, voxelY, voxelZ);
@@ -3629,17 +3664,17 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 			// Ceiling.
 			SoftwareRenderer::drawPerspectivePixels(x, drawRanges.at(0), nearPoint, farPoint,
-				nearZ, farZ, -Double3::UnitY, textures.at(wallData.ceilingID), shadingInfo,
+				nearZ, farZ, -Double3::UnitY, textures.at(wallData.ceilingID),shadingInfo, defaultMaterial,
 				occlusion, frame);
 
 			// Wall.
 			SoftwareRenderer::drawPixels(x, drawRanges.at(1), farZ, wallU, 0.0,
-				Constants::JustBelowOne, wallNormal, textures.at(wallData.sideID), shadingInfo,
+				Constants::JustBelowOne, wallNormal, textures.at(wallData.sideID),shadingInfo, defaultMaterial,
 				occlusion, frame);
 
 			// Floor.
 			SoftwareRenderer::drawPerspectivePixels(x, drawRanges.at(2), farPoint, nearPoint,
-				farZ, nearZ, Double3::UnitY, textures.at(wallData.floorID), shadingInfo,
+				farZ, nearZ, Double3::UnitY, textures.at(wallData.floorID),shadingInfo, defaultMaterial,
 				occlusion, frame);
 		}
 		else if (voxelData.dataType == VoxelDataType::Floor)
@@ -3666,7 +3701,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 					nearFloorPoint, farFloorPoint, camera, frame);
 
 				SoftwareRenderer::drawPerspectivePixels(x, drawRange, nearPoint, farPoint,
-					nearZ, farZ, -Double3::UnitY, textures.at(ceilingData.id), shadingInfo,
+					nearZ, farZ, -Double3::UnitY, textures.at(ceilingData.id),shadingInfo, defaultMaterial,
 					occlusion, frame);
 			}
 		}
@@ -3697,7 +3732,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 				// Ceiling.
 				SoftwareRenderer::drawPerspectivePixels(x, drawRange, farPoint, nearPoint, farZ,
-					nearZ, Double3::UnitY, textures.at(raisedData.ceilingID), shadingInfo,
+					nearZ, Double3::UnitY, textures.at(raisedData.ceilingID),shadingInfo, defaultMaterial,
 					occlusion, frame);
 			}
 			else if (camera.eye.y < nearFloorPoint.y)
@@ -3713,7 +3748,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 				// Floor.
 				SoftwareRenderer::drawPerspectivePixels(x, drawRange, nearPoint, farPoint, nearZ,
-					farZ, -Double3::UnitY, textures.at(raisedData.floorID), shadingInfo,
+					farZ, -Double3::UnitY, textures.at(raisedData.floorID),shadingInfo, defaultMaterial,
 					occlusion, frame);
 			}
 			else
@@ -3734,17 +3769,17 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 				// Ceiling.
 				SoftwareRenderer::drawPerspectivePixels(x, drawRanges.at(0), nearPoint, farPoint,
-					nearZ, farZ, -Double3::UnitY, textures.at(raisedData.ceilingID), shadingInfo,
+					nearZ, farZ, -Double3::UnitY, textures.at(raisedData.ceilingID),shadingInfo, defaultMaterial,
 					occlusion, frame);
 
 				// Wall.
 				SoftwareRenderer::drawTransparentPixels(x, drawRanges.at(1), farZ, wallU,
 					raisedData.vTop, raisedData.vBottom, wallNormal,
-					textures.at(raisedData.sideID), shadingInfo, occlusion, frame);
+					textures.at(raisedData.sideID), shadingInfo, defaultMaterial, occlusion, frame);
 
 				// Floor.
 				SoftwareRenderer::drawPerspectivePixels(x, drawRanges.at(2), farPoint, nearPoint,
-					farZ, nearZ, Double3::UnitY, textures.at(raisedData.floorID), shadingInfo,
+					farZ, nearZ, Double3::UnitY, textures.at(raisedData.floorID),shadingInfo, defaultMaterial,
 					occlusion, frame);
 			}
 		}
@@ -3773,8 +3808,8 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 					diagTopPoint, diagBottomPoint, camera, frame);
 
 				SoftwareRenderer::drawPixels(x, drawRange, nearZ + hit.innerZ, hit.u, 0.0,
-					Constants::JustBelowOne, hit.normal, textures.at(diagData.id), shadingInfo,
-					occlusion, frame);
+					Constants::JustBelowOne, hit.normal, textures.at(diagData.id),shadingInfo,
+					defaultMaterial, occlusion, frame);
 			}
 		}
 		else if (voxelData.dataType == VoxelDataType::TransparentWall)
@@ -3807,7 +3842,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 				SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ, hit.u,
 					0.0, Constants::JustBelowOne, hit.normal, textures.at(edgeData.id),
-					shadingInfo, occlusion, frame);
+					shadingInfo, defaultMaterial, occlusion, frame);
 			}
 		}
 		else if (voxelData.dataType == VoxelDataType::Chasm)
@@ -3866,7 +3901,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 					farCeilingPoint, farFloorPoint, camera, frame);
 
 				SoftwareRenderer::drawTransparentPixels(x, drawRange, farZ, farU, 0.0,
-					Constants::JustBelowOne, farNormal, textures.at(chasmData.id), shadingInfo,
+					Constants::JustBelowOne, farNormal, textures.at(chasmData.id),shadingInfo, defaultMaterial,
 					occlusion, frame);
 			}
 		}
@@ -3898,7 +3933,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 					
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						doorShadingInfo, occlusion, frame);
+						shadingInfo, usableMaterial, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Sliding)
 				{
@@ -3916,7 +3951,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						doorShadingInfo, occlusion, frame);
+						shadingInfo, usableMaterial, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Raising)
 				{
@@ -3941,7 +3976,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, vStart, Constants::JustBelowOne, hit.normal,
-						textures.at(doorData.id), doorShadingInfo, occlusion, frame);
+						textures.at(doorData.id), shadingInfo, usableMaterial, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Splitting)
 				{
@@ -3959,14 +3994,14 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						doorShadingInfo, occlusion, frame);
+						shadingInfo, usableMaterial, occlusion, frame);
 				}
 			}
 		}
 	};
 
 	auto drawInitialVoxelBelow = [x, voxelX, voxelZ, &camera, &ray, &wallNormal, &nearPoint,
-		&farPoint, nearZ, farZ, wallU, &shadingInfo, &doorShadingInfo, ceilingHeight, &openDoors, &voxelGrid,
+		&farPoint, nearZ, farZ, wallU, &shadingInfo, ceilingHeight, &openDoors, &voxelGrid,
 		&textures, &occlusion, &frame](int voxelY)
 	{
 		const uint16_t voxelID = voxelGrid.getVoxel(voxelX, voxelY, voxelZ);
@@ -3992,7 +4027,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 			// Ceiling.
 			SoftwareRenderer::drawPerspectivePixels(x, drawRange, farPoint, nearPoint, farZ,
-				nearZ, Double3::UnitY, textures.at(wallData.ceilingID), shadingInfo,
+				nearZ, Double3::UnitY, textures.at(wallData.ceilingID),shadingInfo, defaultMaterial,
 				occlusion, frame);
 		}
 		else if (voxelData.dataType == VoxelDataType::Floor)
@@ -4014,7 +4049,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 			// Ceiling.
 			SoftwareRenderer::drawPerspectivePixels(x, drawRange, farPoint, nearPoint, farZ,
-				nearZ, Double3::UnitY, textures.at(floorData.id), shadingInfo,
+				nearZ, Double3::UnitY, textures.at(floorData.id),shadingInfo, defaultMaterial,
 				occlusion, frame);
 		}
 		else if (voxelData.dataType == VoxelDataType::Ceiling)
@@ -4048,7 +4083,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 				// Ceiling.
 				SoftwareRenderer::drawPerspectivePixels(x, drawRange, farPoint, nearPoint, farZ,
-					nearZ, Double3::UnitY, textures.at(raisedData.ceilingID), shadingInfo,
+					nearZ, Double3::UnitY, textures.at(raisedData.ceilingID),shadingInfo, defaultMaterial,
 					occlusion, frame);
 			}
 			else if (camera.eye.y < nearFloorPoint.y)
@@ -4064,7 +4099,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 				// Floor.
 				SoftwareRenderer::drawPerspectivePixels(x, drawRange, nearPoint, farPoint, nearZ,
-					farZ, -Double3::UnitY, textures.at(raisedData.floorID), shadingInfo,
+					farZ, -Double3::UnitY, textures.at(raisedData.floorID),shadingInfo, defaultMaterial,
 					occlusion, frame);
 			}
 			else
@@ -4085,17 +4120,17 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 				// Ceiling.
 				SoftwareRenderer::drawPerspectivePixels(x, drawRanges.at(0), nearPoint, farPoint,
-					nearZ, farZ, -Double3::UnitY, textures.at(raisedData.ceilingID), shadingInfo,
+					nearZ, farZ, -Double3::UnitY, textures.at(raisedData.ceilingID),shadingInfo, defaultMaterial,
 					occlusion, frame);
 
 				// Wall.
 				SoftwareRenderer::drawTransparentPixels(x, drawRanges.at(1), farZ, wallU,
 					raisedData.vTop, raisedData.vBottom, wallNormal,
-					textures.at(raisedData.sideID), shadingInfo, occlusion, frame);
+					textures.at(raisedData.sideID),shadingInfo, defaultMaterial, occlusion, frame);
 
 				// Floor.
 				SoftwareRenderer::drawPerspectivePixels(x, drawRanges.at(2), farPoint, nearPoint,
-					farZ, nearZ, Double3::UnitY, textures.at(raisedData.floorID), shadingInfo,
+					farZ, nearZ, Double3::UnitY, textures.at(raisedData.floorID),shadingInfo, defaultMaterial,
 					occlusion, frame);
 			}
 		}
@@ -4124,8 +4159,8 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 					diagTopPoint, diagBottomPoint, camera, frame);
 
 				SoftwareRenderer::drawPixels(x, drawRange, nearZ + hit.innerZ, hit.u, 0.0,
-					Constants::JustBelowOne, hit.normal, textures.at(diagData.id), shadingInfo,
-					occlusion, frame);
+					Constants::JustBelowOne, hit.normal, textures.at(diagData.id),shadingInfo,
+					defaultMaterial, occlusion, frame);
 			}
 		}
 		else if (voxelData.dataType == VoxelDataType::TransparentWall)
@@ -4158,7 +4193,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 				SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ, hit.u,
 					0.0, Constants::JustBelowOne, hit.normal, textures.at(edgeData.id),
-					shadingInfo, occlusion, frame);
+					shadingInfo, defaultMaterial, occlusion, frame);
 			}
 		}
 		else if (voxelData.dataType == VoxelDataType::Chasm)
@@ -4217,7 +4252,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 					farCeilingPoint, farFloorPoint, camera, frame);
 
 				SoftwareRenderer::drawTransparentPixels(x, drawRange, farZ, farU, 0.0,
-					Constants::JustBelowOne, farNormal, textures.at(chasmData.id), shadingInfo,
+					Constants::JustBelowOne, farNormal, textures.at(chasmData.id),shadingInfo, defaultMaterial,
 					occlusion, frame);
 			}
 		}
@@ -4249,7 +4284,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						doorShadingInfo, occlusion, frame);
+						shadingInfo, usableMaterial, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Sliding)
 				{
@@ -4267,7 +4302,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						doorShadingInfo, occlusion, frame);
+						shadingInfo, usableMaterial, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Raising)
 				{
@@ -4292,7 +4327,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, vStart, Constants::JustBelowOne, hit.normal,
-						textures.at(doorData.id), doorShadingInfo, occlusion, frame);
+						textures.at(doorData.id), shadingInfo, usableMaterial, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Splitting)
 				{
@@ -4310,14 +4345,14 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						doorShadingInfo, occlusion, frame);
+						shadingInfo, usableMaterial, occlusion, frame);
 				}
 			}
 		}
 	};
 
 	auto drawInitialVoxelAbove = [x, voxelX, voxelZ, &camera, &ray, &wallNormal, &nearPoint,
-		&farPoint, nearZ, farZ, wallU, &shadingInfo, &doorShadingInfo, ceilingHeight, &openDoors, &voxelGrid,
+		&farPoint, nearZ, farZ, wallU, &shadingInfo, ceilingHeight, &openDoors, &voxelGrid,
 		&textures, &occlusion, &frame](int voxelY)
 	{
 		const uint16_t voxelID = voxelGrid.getVoxel(voxelX, voxelY, voxelZ);
@@ -4343,7 +4378,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 			// Floor.
 			SoftwareRenderer::drawPerspectivePixels(x, drawRange, nearPoint, farPoint, nearZ,
-				farZ, -Double3::UnitY, textures.at(wallData.floorID), shadingInfo,
+				farZ, -Double3::UnitY, textures.at(wallData.floorID),shadingInfo, defaultMaterial,
 				occlusion, frame);
 		}
 		else if (voxelData.dataType == VoxelDataType::Floor)
@@ -4368,7 +4403,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 				nearFloorPoint, farFloorPoint, camera, frame);
 
 			SoftwareRenderer::drawPerspectivePixels(x, drawRange, nearPoint, farPoint, nearZ,
-				farZ, -Double3::UnitY, textures.at(ceilingData.id), shadingInfo,
+				farZ, -Double3::UnitY, textures.at(ceilingData.id),shadingInfo, defaultMaterial,
 				occlusion, frame);
 		}
 		else if (voxelData.dataType == VoxelDataType::Raised)
@@ -4398,7 +4433,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 				// Ceiling.
 				SoftwareRenderer::drawPerspectivePixels(x, drawRange, farPoint, nearPoint, farZ,
-					nearZ, Double3::UnitY, textures.at(raisedData.ceilingID), shadingInfo,
+					nearZ, Double3::UnitY, textures.at(raisedData.ceilingID),shadingInfo, defaultMaterial,
 					occlusion, frame);
 			}
 			else if (camera.eye.y < nearFloorPoint.y)
@@ -4414,7 +4449,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 				// Floor.
 				SoftwareRenderer::drawPerspectivePixels(x, drawRange, nearPoint, farPoint, nearZ,
-					farZ, -Double3::UnitY, textures.at(raisedData.floorID), shadingInfo,
+					farZ, -Double3::UnitY, textures.at(raisedData.floorID),shadingInfo, defaultMaterial,
 					occlusion, frame);
 			}
 			else
@@ -4435,17 +4470,17 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 				// Ceiling.
 				SoftwareRenderer::drawPerspectivePixels(x, drawRanges.at(0), nearPoint, farPoint,
-					nearZ, farZ, -Double3::UnitY, textures.at(raisedData.ceilingID), shadingInfo,
+					nearZ, farZ, -Double3::UnitY, textures.at(raisedData.ceilingID),shadingInfo, defaultMaterial,
 					occlusion, frame);
 
 				// Wall.
 				SoftwareRenderer::drawTransparentPixels(x, drawRanges.at(1), farZ, wallU,
 					raisedData.vTop, raisedData.vBottom, wallNormal,
-					textures.at(raisedData.sideID), shadingInfo, occlusion, frame);
+					textures.at(raisedData.sideID),shadingInfo, defaultMaterial, occlusion, frame);
 
 				// Floor.
 				SoftwareRenderer::drawPerspectivePixels(x, drawRanges.at(2), farPoint, nearPoint,
-					farZ, nearZ, Double3::UnitY, textures.at(raisedData.floorID), shadingInfo,
+					farZ, nearZ, Double3::UnitY, textures.at(raisedData.floorID),shadingInfo, defaultMaterial,
 					occlusion, frame);
 			}
 		}
@@ -4474,8 +4509,8 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 					diagTopPoint, diagBottomPoint, camera, frame);
 
 				SoftwareRenderer::drawPixels(x, drawRange, nearZ + hit.innerZ, hit.u, 0.0,
-					Constants::JustBelowOne, hit.normal, textures.at(diagData.id), shadingInfo,
-					occlusion, frame);
+					Constants::JustBelowOne, hit.normal, textures.at(diagData.id),shadingInfo,
+					defaultMaterial, occlusion, frame);
 			}
 		}
 		else if (voxelData.dataType == VoxelDataType::TransparentWall)
@@ -4508,7 +4543,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 				SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ, hit.u,
 					0.0, Constants::JustBelowOne, hit.normal, textures.at(edgeData.id),
-					shadingInfo, occlusion, frame);
+					shadingInfo, defaultMaterial, occlusion, frame);
 			}
 		}
 		else if (voxelData.dataType == VoxelDataType::Chasm)
@@ -4543,7 +4578,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						doorShadingInfo, occlusion, frame);
+						shadingInfo, usableMaterial, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Sliding)
 				{
@@ -4561,7 +4596,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						doorShadingInfo, occlusion, frame);
+						shadingInfo, usableMaterial, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Raising)
 				{
@@ -4586,7 +4621,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, vStart, Constants::JustBelowOne, hit.normal,
-						textures.at(doorData.id), doorShadingInfo, occlusion, frame);
+						textures.at(doorData.id), shadingInfo, usableMaterial, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Splitting)
 				{
@@ -4604,7 +4639,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						doorShadingInfo, occlusion, frame);
+						shadingInfo, usableMaterial, occlusion, frame);
 				}
 			}
 		}
@@ -4631,8 +4666,8 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Camera &camera,
 	const Ray &ray, VoxelData::Facing facing, const Double2 &nearPoint, const Double2 &farPoint,
-	double nearZ, double farZ, const ShadingInfo &shadingInfo, double ceilingHeight,
-	const std::vector<LevelData::DoorState> &openDoors, const VoxelGrid &voxelGrid,
+	double nearZ, double farZ, const ShadingInfo &shadingInfo, const RenderMaterial &material,
+	double ceilingHeight, const std::vector<LevelData::DoorState> &openDoors, const VoxelGrid &voxelGrid,
 	const std::vector<VoxelTexture> &textures, OcclusionData &occlusion, const FrameView &frame)
 {
 	// Much of the code here is duplicated from the initial voxel column drawing method, but
@@ -4650,14 +4685,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 	// Horizontal texture coordinate for the wall, potentially shared between multiple voxels
 	// in this voxel column.
-	
-	const ShadingInfo doorShadingInfo = [shadingInfo]()
-	{
-		ShadingInfo dsi = shadingInfo;
-		dsi.isBlinking = true;
-		return dsi;
-	}();
-	
+
 	const double wallU = [&nearPoint, facing]()
 	{
 		const double uVal = [&nearPoint, facing]()
@@ -4688,7 +4716,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 	const Double3 wallNormal = VoxelData::getNormal(facing);
 
 	auto drawVoxel = [x, voxelX, voxelZ, &camera, &ray, facing, &wallNormal, &nearPoint,
-		&farPoint, nearZ, farZ, wallU, &shadingInfo, &doorShadingInfo, ceilingHeight, &openDoors, &voxelGrid,
+		&farPoint, nearZ, farZ, wallU, &shadingInfo, ceilingHeight, &openDoors, &voxelGrid,
 		&textures, &occlusion, &frame](int voxelY)
 	{
 		const uint16_t voxelID = voxelGrid.getVoxel(voxelX, voxelY, voxelZ);
@@ -4714,7 +4742,8 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 				nearCeilingPoint, nearFloorPoint, camera, frame);
 
 			SoftwareRenderer::drawPixels(x, drawRange, nearZ, wallU, 0.0, Constants::JustBelowOne,
-				wallNormal, textures.at(wallData.sideID), shadingInfo, occlusion, frame);
+				wallNormal, textures.at(wallData.sideID),shadingInfo, 
+				defaultMaterial, occlusion, frame);
 		}
 		else if (voxelData.dataType == VoxelDataType::Floor)
 		{
@@ -4740,7 +4769,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 					nearFloorPoint, farFloorPoint, camera, frame);
 
 				SoftwareRenderer::drawPerspectivePixels(x, drawRange, nearPoint, farPoint, nearZ,
-					farZ, -Double3::UnitY, textures.at(ceilingData.id), shadingInfo,
+					farZ, -Double3::UnitY, textures.at(ceilingData.id),shadingInfo, defaultMaterial,
 					occlusion, frame);
 			}
 		}
@@ -4771,13 +4800,13 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 				// Ceiling.
 				SoftwareRenderer::drawPerspectivePixels(x, drawRanges.at(0), farPoint, nearPoint,
-					farZ, nearZ, Double3::UnitY, textures.at(raisedData.ceilingID), shadingInfo,
+					farZ, nearZ, Double3::UnitY, textures.at(raisedData.ceilingID),shadingInfo, defaultMaterial,
 					occlusion, frame);
 
 				// Wall.
 				SoftwareRenderer::drawTransparentPixels(x, drawRanges.at(1), nearZ, wallU,
 					raisedData.vTop, raisedData.vBottom, wallNormal,
-					textures.at(raisedData.sideID), shadingInfo, occlusion, frame);
+					textures.at(raisedData.sideID),shadingInfo, defaultMaterial, occlusion, frame);
 			}
 			else if (camera.eye.y < nearFloorPoint.y)
 			{
@@ -4793,11 +4822,11 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 				// Wall.
 				SoftwareRenderer::drawTransparentPixels(x, drawRanges.at(0), nearZ, wallU,
 					raisedData.vTop, raisedData.vBottom, wallNormal,
-					textures.at(raisedData.sideID), shadingInfo, occlusion, frame);
+					textures.at(raisedData.sideID),shadingInfo, defaultMaterial, occlusion, frame);
 
 				// Floor.
 				SoftwareRenderer::drawPerspectivePixels(x, drawRanges.at(1), nearPoint, farPoint,
-					nearZ, farZ, -Double3::UnitY, textures.at(raisedData.floorID), shadingInfo,
+					nearZ, farZ, -Double3::UnitY, textures.at(raisedData.floorID),shadingInfo, defaultMaterial,
 					occlusion, frame);
 			}
 			else
@@ -4808,7 +4837,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 				SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, wallU,
 					raisedData.vTop, raisedData.vBottom, wallNormal,
-					textures.at(raisedData.sideID), shadingInfo, occlusion, frame);
+					textures.at(raisedData.sideID),shadingInfo, defaultMaterial, occlusion, frame);
 			}
 		}
 		else if (voxelData.dataType == VoxelDataType::Diagonal)
@@ -4836,8 +4865,8 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 					diagTopPoint, diagBottomPoint, camera, frame);
 
 				SoftwareRenderer::drawPixels(x, drawRange, nearZ + hit.innerZ, hit.u, 0.0,
-					Constants::JustBelowOne, hit.normal, textures.at(diagData.id), shadingInfo,
-					occlusion, frame);
+					Constants::JustBelowOne, hit.normal, textures.at(diagData.id),shadingInfo,
+					defaultMaterial, occlusion, frame);
 			}
 		}
 		else if (voxelData.dataType == VoxelDataType::TransparentWall)
@@ -4859,7 +4888,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 			SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, wallU, 0.0,
 				Constants::JustBelowOne, wallNormal, textures.at(transparentWallData.id),
-				shadingInfo, occlusion, frame);
+				shadingInfo, defaultMaterial, occlusion, frame);
 		}
 		else if (voxelData.dataType == VoxelDataType::Edge)
 		{
@@ -4887,7 +4916,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 				SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ, hit.u,
 					0.0, Constants::JustBelowOne, hit.normal, textures.at(edgeData.id),
-					shadingInfo, occlusion, frame);
+					shadingInfo, defaultMaterial, occlusion, frame);
 			}
 		}
 		else if (voxelData.dataType == VoxelDataType::Chasm)
@@ -4924,7 +4953,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 				SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, nearU, 0.0,
 					Constants::JustBelowOne, nearNormal, textures.at(chasmData.id),
-					shadingInfo, occlusion, frame);
+					shadingInfo, defaultMaterial, occlusion, frame);
 			}
 
 			// Far.
@@ -4975,7 +5004,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 				SoftwareRenderer::drawTransparentPixels(x, drawRange, farZ, farU, 0.0,
 					Constants::JustBelowOne, farNormal, textures.at(chasmData.id),
-					shadingInfo, occlusion, frame);
+					shadingInfo, defaultMaterial, occlusion, frame);
 			}
 		}
 		else if (voxelData.dataType == VoxelDataType::Door)
@@ -5006,7 +5035,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						doorShadingInfo, occlusion, frame);
+						shadingInfo, usableMaterial, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Sliding)
 				{
@@ -5024,7 +5053,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, hit.u, 0.0,
 						Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						doorShadingInfo, occlusion, frame);
+						shadingInfo, usableMaterial, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Raising)
 				{
@@ -5048,8 +5077,8 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 					const double vStart = raisedAmount / voxelHeight;
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, hit.u, vStart,
-						Constants::JustBelowOne, hit.normal, textures.at(doorData.id), doorShadingInfo,
-						occlusion, frame);
+						Constants::JustBelowOne, hit.normal, textures.at(doorData.id), shadingInfo,
+						usableMaterial, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Splitting)
 				{
@@ -5067,14 +5096,14 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, hit.u, 0.0,
 						Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						doorShadingInfo, occlusion, frame);
+						shadingInfo, usableMaterial, occlusion, frame);
 				}
 			}
 		}
 	};
 
 	auto drawVoxelBelow = [x, voxelX, voxelZ, &camera, &ray, facing, &wallNormal, &nearPoint,
-		&farPoint, nearZ, farZ, wallU, &shadingInfo, &doorShadingInfo, ceilingHeight, &openDoors, &voxelGrid,
+		&farPoint, nearZ, farZ, wallU, &shadingInfo, ceilingHeight, &openDoors, &voxelGrid,
 		&textures, &occlusion, &frame](int voxelY)
 	{
 		const uint16_t voxelID = voxelGrid.getVoxel(voxelX, voxelY, voxelZ);
@@ -5104,13 +5133,13 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 			// Ceiling.
 			SoftwareRenderer::drawPerspectivePixels(x, drawRanges.at(0), farPoint, nearPoint, farZ,
-				nearZ, Double3::UnitY, textures.at(wallData.ceilingID), shadingInfo,
+				nearZ, Double3::UnitY, textures.at(wallData.ceilingID),shadingInfo, defaultMaterial,
 				occlusion, frame);
 
 			// Wall.
 			SoftwareRenderer::drawPixels(x, drawRanges.at(1), nearZ, wallU, 0.0,
-				Constants::JustBelowOne, wallNormal, textures.at(wallData.sideID), shadingInfo,
-				occlusion, frame);
+				Constants::JustBelowOne, wallNormal, textures.at(wallData.sideID),shadingInfo,
+				defaultMaterial, occlusion, frame);
 		}
 		else if (voxelData.dataType == VoxelDataType::Floor)
 		{
@@ -5130,7 +5159,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 				farCeilingPoint, nearCeilingPoint, camera, frame);
 
 			SoftwareRenderer::drawPerspectivePixels(x, drawRange, farPoint, nearPoint, farZ,
-				nearZ, Double3::UnitY, textures.at(floorData.id), shadingInfo, 
+				nearZ, Double3::UnitY, textures.at(floorData.id),shadingInfo, defaultMaterial, 
 				occlusion, frame);
 		}
 		else if (voxelData.dataType == VoxelDataType::Ceiling)
@@ -5164,13 +5193,13 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 				// Ceiling.
 				SoftwareRenderer::drawPerspectivePixels(x, drawRanges.at(0), farPoint, nearPoint,
-					farZ, nearZ, Double3::UnitY, textures.at(raisedData.ceilingID), shadingInfo,
+					farZ, nearZ, Double3::UnitY, textures.at(raisedData.ceilingID),shadingInfo, defaultMaterial,
 					occlusion, frame);
 
 				// Wall.
 				SoftwareRenderer::drawTransparentPixels(x, drawRanges.at(1), nearZ, wallU,
 					raisedData.vTop, raisedData.vBottom, wallNormal,
-					textures.at(raisedData.sideID), shadingInfo, occlusion, frame);
+					textures.at(raisedData.sideID),shadingInfo, defaultMaterial, occlusion, frame);
 			}
 			else if (camera.eye.y < nearFloorPoint.y)
 			{
@@ -5186,11 +5215,11 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 				// Wall.
 				SoftwareRenderer::drawTransparentPixels(x, drawRanges.at(0), nearZ, wallU,
 					raisedData.vTop, raisedData.vBottom, wallNormal,
-					textures.at(raisedData.sideID), shadingInfo, occlusion, frame);
+					textures.at(raisedData.sideID),shadingInfo, defaultMaterial, occlusion, frame);
 
 				// Floor.
 				SoftwareRenderer::drawPerspectivePixels(x, drawRanges.at(1), nearPoint, farPoint,
-					nearZ, farZ, -Double3::UnitY, textures.at(raisedData.floorID), shadingInfo,
+					nearZ, farZ, -Double3::UnitY, textures.at(raisedData.floorID),shadingInfo, defaultMaterial,
 					occlusion, frame);
 			}
 			else
@@ -5201,7 +5230,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 				SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, wallU,
 					raisedData.vTop, raisedData.vBottom, wallNormal,
-					textures.at(raisedData.sideID), shadingInfo, occlusion, frame);
+					textures.at(raisedData.sideID),shadingInfo, defaultMaterial, occlusion, frame);
 			}
 		}
 		else if (voxelData.dataType == VoxelDataType::Diagonal)
@@ -5229,8 +5258,8 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 					diagTopPoint, diagBottomPoint, camera, frame);
 
 				SoftwareRenderer::drawPixels(x, drawRange, nearZ + hit.innerZ, hit.u, 0.0,
-					Constants::JustBelowOne, hit.normal, textures.at(diagData.id), shadingInfo,
-					occlusion, frame);
+					Constants::JustBelowOne, hit.normal, textures.at(diagData.id),shadingInfo,
+					defaultMaterial, occlusion, frame);
 			}
 		}
 		else if (voxelData.dataType == VoxelDataType::TransparentWall)
@@ -5252,7 +5281,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 			SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, wallU, 0.0,
 				Constants::JustBelowOne, wallNormal, textures.at(transparentWallData.id),
-				shadingInfo, occlusion, frame);
+				shadingInfo, defaultMaterial, occlusion, frame);
 		}
 		else if (voxelData.dataType == VoxelDataType::Edge)
 		{
@@ -5280,7 +5309,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 				SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ, hit.u,
 					0.0, Constants::JustBelowOne, hit.normal, textures.at(edgeData.id),
-					shadingInfo, occlusion, frame);
+					shadingInfo, defaultMaterial, occlusion, frame);
 			}
 		}
 		else if (voxelData.dataType == VoxelDataType::Chasm)
@@ -5317,7 +5346,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 				SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, nearU, 0.0,
 					Constants::JustBelowOne, nearNormal, textures.at(chasmData.id),
-					shadingInfo, occlusion, frame);
+					shadingInfo, defaultMaterial, occlusion, frame);
 			}
 
 			// Far.
@@ -5368,7 +5397,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 				SoftwareRenderer::drawTransparentPixels(x, drawRange, farZ, farU, 0.0,
 					Constants::JustBelowOne, farNormal, textures.at(chasmData.id),
-					shadingInfo, occlusion, frame);
+					shadingInfo, defaultMaterial, occlusion, frame);
 			}
 		}
 		else if (voxelData.dataType == VoxelDataType::Door)
@@ -5399,7 +5428,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						doorShadingInfo, occlusion, frame);
+						shadingInfo, usableMaterial, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Sliding)
 				{
@@ -5417,7 +5446,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, hit.u, 0.0,
 						Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						doorShadingInfo, occlusion, frame);
+						shadingInfo, usableMaterial, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Raising)
 				{
@@ -5441,8 +5470,8 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 					const double vStart = raisedAmount / voxelHeight;
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, hit.u, vStart,
-						Constants::JustBelowOne, hit.normal, textures.at(doorData.id), doorShadingInfo,
-						occlusion, frame);
+						Constants::JustBelowOne, hit.normal, textures.at(doorData.id), shadingInfo,
+						usableMaterial, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Splitting)
 				{
@@ -5460,14 +5489,14 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, hit.u, 0.0,
 						Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						doorShadingInfo, occlusion, frame);
+						shadingInfo, usableMaterial, occlusion, frame);
 				}
 			}
 		}
 	};
 
 	auto drawVoxelAbove = [x, voxelX, voxelZ, &camera, &ray, facing, &wallNormal, &nearPoint,
-		&farPoint, nearZ, farZ, wallU, &shadingInfo, &doorShadingInfo, ceilingHeight, &openDoors, &voxelGrid,
+		&farPoint, nearZ, farZ, wallU, &shadingInfo, ceilingHeight, &openDoors, &voxelGrid,
 		&textures, &occlusion, &frame](int voxelY)
 	{
 		const uint16_t voxelID = voxelGrid.getVoxel(voxelX, voxelY, voxelZ);
@@ -5497,12 +5526,12 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 			
 			// Wall.
 			SoftwareRenderer::drawPixels(x, drawRanges.at(0), nearZ, wallU, 0.0,
-				Constants::JustBelowOne, wallNormal, textures.at(wallData.sideID), shadingInfo,
-				occlusion, frame);
+				Constants::JustBelowOne, wallNormal, textures.at(wallData.sideID),shadingInfo,
+				defaultMaterial, occlusion, frame);
 
 			// Floor.
 			SoftwareRenderer::drawPerspectivePixels(x, drawRanges.at(1), nearPoint, farPoint,
-				nearZ, farZ, -Double3::UnitY, textures.at(wallData.floorID), shadingInfo,
+				nearZ, farZ, -Double3::UnitY, textures.at(wallData.floorID),shadingInfo, defaultMaterial,
 				occlusion, frame);
 		}
 		else if (voxelData.dataType == VoxelDataType::Floor)
@@ -5527,7 +5556,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 				nearFloorPoint, farFloorPoint, camera, frame);
 
 			SoftwareRenderer::drawPerspectivePixels(x, drawRange, nearPoint, farPoint, nearZ,
-				farZ, -Double3::UnitY, textures.at(ceilingData.id), shadingInfo,
+				farZ, -Double3::UnitY, textures.at(ceilingData.id),shadingInfo, defaultMaterial,
 				occlusion, frame);
 		}
 		else if (voxelData.dataType == VoxelDataType::Raised)
@@ -5557,13 +5586,13 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 				// Ceiling.
 				SoftwareRenderer::drawPerspectivePixels(x, drawRanges.at(0), farPoint, nearPoint,
-					farZ, nearZ, Double3::UnitY, textures.at(raisedData.ceilingID), shadingInfo,
+					farZ, nearZ, Double3::UnitY, textures.at(raisedData.ceilingID),shadingInfo, defaultMaterial,
 					occlusion, frame);
 
 				// Wall.
 				SoftwareRenderer::drawTransparentPixels(x, drawRanges.at(1), nearZ, wallU,
 					raisedData.vTop, raisedData.vBottom, wallNormal,
-					textures.at(raisedData.sideID), shadingInfo, occlusion, frame);
+					textures.at(raisedData.sideID),shadingInfo, defaultMaterial, occlusion, frame);
 			}
 			else if (camera.eye.y < nearFloorPoint.y)
 			{
@@ -5579,11 +5608,11 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 				// Wall.
 				SoftwareRenderer::drawTransparentPixels(x, drawRanges.at(0), nearZ, wallU,
 					raisedData.vTop, raisedData.vBottom, wallNormal,
-					textures.at(raisedData.sideID), shadingInfo, occlusion, frame);
+					textures.at(raisedData.sideID),shadingInfo, defaultMaterial, occlusion, frame);
 
 				// Floor.
 				SoftwareRenderer::drawPerspectivePixels(x, drawRanges.at(1), nearPoint, farPoint,
-					nearZ, farZ, -Double3::UnitY, textures.at(raisedData.floorID), shadingInfo,
+					nearZ, farZ, -Double3::UnitY, textures.at(raisedData.floorID),shadingInfo, defaultMaterial,
 					occlusion, frame);
 			}
 			else
@@ -5594,7 +5623,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 				SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, wallU,
 					raisedData.vTop, raisedData.vBottom, wallNormal,
-					textures.at(raisedData.sideID), shadingInfo, occlusion, frame);
+					textures.at(raisedData.sideID),shadingInfo, defaultMaterial, occlusion, frame);
 			}
 		}
 		else if (voxelData.dataType == VoxelDataType::Diagonal)
@@ -5622,7 +5651,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 					diagTopPoint, diagBottomPoint, camera, frame);
 
 				SoftwareRenderer::drawPixels(x, drawRange, nearZ + hit.innerZ, hit.u, 0.0,
-					Constants::JustBelowOne, hit.normal, textures.at(diagData.id), shadingInfo,
+					Constants::JustBelowOne, hit.normal, textures.at(diagData.id),shadingInfo, defaultMaterial,
 					occlusion, frame);
 			}
 		}
@@ -5645,7 +5674,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 			SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, wallU, 0.0,
 				Constants::JustBelowOne, wallNormal, textures.at(transparentWallData.id),
-				shadingInfo, occlusion, frame);
+				shadingInfo, defaultMaterial, occlusion, frame);
 		}
 		else if (voxelData.dataType == VoxelDataType::Edge)
 		{
@@ -5673,7 +5702,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 				SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ, hit.u,
 					0.0, Constants::JustBelowOne, hit.normal, textures.at(edgeData.id),
-					shadingInfo, occlusion, frame);
+					shadingInfo, defaultMaterial, occlusion, frame);
 			}
 		}
 		else if (voxelData.dataType == VoxelDataType::Chasm)
@@ -5708,7 +5737,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ + hit.innerZ,
 						hit.u, 0.0, Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						doorShadingInfo, occlusion, frame);
+						shadingInfo, usableMaterial, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Sliding)
 				{
@@ -5726,7 +5755,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, hit.u, 0.0,
 						Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						doorShadingInfo, occlusion, frame);
+						shadingInfo, usableMaterial, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Raising)
 				{
@@ -5750,8 +5779,8 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 					const double vStart = raisedAmount / voxelHeight;
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, hit.u, vStart,
-						Constants::JustBelowOne, hit.normal, textures.at(doorData.id), doorShadingInfo,
-						occlusion, frame);
+						Constants::JustBelowOne, hit.normal, textures.at(doorData.id), shadingInfo,
+						usableMaterial, occlusion, frame);
 				}
 				else if (doorData.type == VoxelData::DoorData::Type::Splitting)
 				{
@@ -5769,7 +5798,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 					SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, hit.u, 0.0,
 						Constants::JustBelowOne, hit.normal, textures.at(doorData.id),
-						doorShadingInfo, occlusion, frame);
+						shadingInfo, usableMaterial, occlusion, frame);
 				}
 			}
 		}
@@ -5796,10 +5825,10 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 
 void SoftwareRenderer::drawFlat(int startX, int endX, const Flat::Frame &flatFrame,
 	const Double3 &normal, bool flipped, const Double2 &eye, const ShadingInfo &shadingInfo,
-	const FlatTexture &texture, const FrameView &frame)
+	const RenderMaterial &material, const FlatTexture &texture, const FrameView &frame)
 {
 	// Contribution from the sun.
-	const double lightNormalDot = std::max(0.0, shadingInfo.sunDirection.dot(normal));
+	const double lightNormalDot = std::max(0.0,shadingInfo.sunDirection.dot(normal));
 	const Double3 sunComponent = (shadingInfo.sunColor * lightNormalDot).clamped(
 		0.0, 1.0 - shadingInfo.ambient);
 
@@ -5929,10 +5958,15 @@ void SoftwareRenderer::drawFlat(int startX, int endX, const Flat::Frame &flatFra
 					colorB = (colorB > high) ? high : colorB;
 
 					// Convert floats to integers.
-					const uint32_t colorRGB = static_cast<uint32_t>(
+					/*const uint32_t colorRGB = static_cast<uint32_t>(
 						((static_cast<uint8_t>(colorR * 255.0)) << 16) |
 						((static_cast<uint8_t>(colorG * 255.0)) << 8) |
-						((static_cast<uint8_t>(colorB * 255.0))));
+						((static_cast<uint8_t>(colorB * 255.0))));*/
+
+					const uint32_t colorRGB = material.shaded(Double3(colorR, colorG, colorB),
+									Double2(u, yPercent),
+									Double3(0.0, 0.0, 0.0), // @todo: add world position
+									frames);
 
 					frame.colorBuffer[index] = colorRGB;
 					frame.depthBuffer[index] = depth;
@@ -6037,7 +6071,7 @@ void SoftwareRenderer::rayCast2D(int x, const Camera &camera, const Ray &ray,
 		// Draw all voxels in a column at the player's XZ coordinate.
 		SoftwareRenderer::drawInitialVoxelColumn(x, camera.eyeVoxel.x, camera.eyeVoxel.z,
 			camera, ray, facing, initialNearPoint, initialFarPoint, SoftwareRenderer::NEAR_PLANE, 
-			zDistance, shadingInfo, ceilingHeight, openDoors, voxelGrid, textures, occlusion,
+			zDistance,shadingInfo, defaultMaterial, ceilingHeight, openDoors, voxelGrid, textures, occlusion,
 			frame);
 	}
 
@@ -6114,7 +6148,7 @@ void SoftwareRenderer::rayCast2D(int x, const Camera &camera, const Ray &ray,
 
 		// Draw all voxels in a column at the given XZ coordinate.
 		SoftwareRenderer::drawVoxelColumn(x, savedCellX, savedCellZ, camera, ray, savedFacing,
-			nearPoint, farPoint, wallDistance, zDistance, shadingInfo, ceilingHeight, 
+			nearPoint, farPoint, wallDistance, zDistance,shadingInfo, defaultMaterial, ceilingHeight, 
 			openDoors, voxelGrid, textures, occlusion, frame);
 	}
 }
@@ -6155,7 +6189,7 @@ void SoftwareRenderer::drawSkyGradient(int startY, int endY, double gradientProj
 
 		// Color of the sky gradient at the given percentage.
 		const Double3 color = SoftwareRenderer::getSkyGradientRowColor(
-			gradientPercent, shadingInfo);
+			gradientPercent,shadingInfo);
 
 		// Cache row color for star rendering.
 		skyGradientRowCache.at(y) = color;
@@ -6218,17 +6252,17 @@ void SoftwareRenderer::drawDistantSky(int startX, int endX, bool parallaxSky,
 				if (renderType == DistantRenderType::General)
 				{
 					SoftwareRenderer::drawDistantPixels(x, drawRange, u, 0.0,
-						Constants::JustBelowOne, texture, emissive, shadingInfo, frame);
+						Constants::JustBelowOne, texture, emissive,shadingInfo, defaultMaterial, frame);
 				}
 				else if (renderType == DistantRenderType::Moon)
 				{
 					SoftwareRenderer::drawMoonPixels(x, drawRange, u, 0.0, Constants::JustBelowOne,
-						texture, shadingInfo, frame);
+						texture,shadingInfo, defaultMaterial, frame);
 				}
 				else if (renderType == DistantRenderType::Star)
 				{
 					SoftwareRenderer::drawStarPixels(x, drawRange, u, 0.0, Constants::JustBelowOne,
-						texture, skyGradientRowCache, shadingInfo, frame);
+						texture, skyGradientRowCache, shadingInfo, defaultMaterial, frame);
 				}
 			}
 		}
@@ -6251,17 +6285,17 @@ void SoftwareRenderer::drawDistantSky(int startX, int endX, bool parallaxSky,
 				if (renderType == DistantRenderType::General)
 				{
 					SoftwareRenderer::drawDistantPixels(x, drawRange, u, 0.0,
-						Constants::JustBelowOne, texture, emissive, shadingInfo, frame);
+						Constants::JustBelowOne, texture, emissive,shadingInfo, defaultMaterial, frame);
 				}
 				else if (renderType == DistantRenderType::Moon)
 				{
 					SoftwareRenderer::drawMoonPixels(x, drawRange, u, 0.0, Constants::JustBelowOne,
-						texture, shadingInfo, frame);
+						texture,shadingInfo, defaultMaterial, frame);
 				}
 				else if (renderType == DistantRenderType::Star)
 				{
 					SoftwareRenderer::drawStarPixels(x, drawRange, u, 0.0, Constants::JustBelowOne,
-						texture, skyGradientRowCache, shadingInfo, frame);
+						texture, skyGradientRowCache, shadingInfo, defaultMaterial, frame);
 				}
 			}
 		}
@@ -6344,7 +6378,7 @@ void SoftwareRenderer::drawFlats(int startX, int endX, const Camera &camera,
 		const Double2 eye2D(camera.eye.x, camera.eye.z);
 
 		SoftwareRenderer::drawFlat(startX, endX, flatFrame, flatNormal, flat.flipped,
-			eye2D, shadingInfo, texture, frame);
+			eye2D,shadingInfo, defaultMaterial, texture, frame);
 	}
 }
 
@@ -6475,7 +6509,7 @@ void SoftwareRenderer::render(const Double3 &eye, const Double3 &direction, doub
 
 	// Set all the render-thread-specific shared data for this frame.
 	this->threadData.init(static_cast<int>(this->renderThreads.size()),
-		camera, shadingInfo, frame);
+		camera,shadingInfo, frame);
 	this->threadData.skyGradient.init(gradientProjYTop, gradientProjYBottom,
 		this->skyGradientRowCache);
 	this->threadData.distantSky.init(parallaxSky, this->visDistantObjs, this->skyTextures);
