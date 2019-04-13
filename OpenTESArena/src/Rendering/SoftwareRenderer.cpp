@@ -619,9 +619,10 @@ RenderMaterial SoftwareRenderer::defaultMaterial = RenderMaterial(
 RenderMaterial SoftwareRenderer::usableMaterial = RenderMaterial(
 		[](const Double3 &baseColor, const Double2 &texCoord, const Double3 &worldPosition, const int &time)
 		{
-			return Double3(baseColor.x * (1.5 + 0.5 * sin(texCoord.x + texCoord.y + time / 20.0)),
-					baseColor.y * (1.5 + 0.5 * sin(texCoord.x + texCoord.y + time / 20.0)),
-					baseColor.z * (1.5 + 0.5 * sin(texCoord.x + texCoord.y + time / 20.0)));
+			const double multiplier = (1.5 + 0.5 * sin(texCoord.x + texCoord.y + time / 20.0));
+			return Double3(baseColor.x * multiplier,
+					baseColor.y * multiplier,
+					baseColor.z * multiplier);
 		});
 
 SoftwareRenderer::SoftwareRenderer()
