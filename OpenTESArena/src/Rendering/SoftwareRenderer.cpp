@@ -602,6 +602,7 @@ void SoftwareRenderer::RenderThreadData::init(int totalThreads, const Camera &ca
 
 const double SoftwareRenderer::NEAR_PLANE = 0.0001;
 const double SoftwareRenderer::FAR_PLANE = 1000.0;
+const double SoftwareRenderer::CHASM_FILL_DEPTH = 0.25;
 const int SoftwareRenderer::DEFAULT_VOXEL_TEXTURE_COUNT = 64;
 const int SoftwareRenderer::DEFAULT_FLAT_TEXTURE_COUNT = 256;
 const double SoftwareRenderer::DOOR_MIN_VISIBLE = 0.10;
@@ -620,9 +621,13 @@ RenderMaterial SoftwareRenderer::usableMaterial = RenderMaterial(
 		[](const Double3 &baseColor, const Double2 &texCoord, const Double3 &worldPosition, const int &time)
 		{
 			const double multiplier = (1.5 + 0.5 * sin(texCoord.x + texCoord.y + time / 20.0));
-			return Double3(baseColor.x * multiplier,
-					baseColor.y * multiplier,
-					baseColor.z * multiplier);
+			return baseColor * multiplier;
+		});
+RenderMaterial SoftwareRenderer::waterMaterial = RenderMaterial(	
+		[](const Double3 &baseColor, const Double2 &texCoord, const Double3 &worldPosition, const int &time)
+		{
+			const double multiplier = 0.1 * sin(time / 20.0) * (sin(texCoord.x * 6 * Constants::Pi) + sin(texCoord.y * 6 * Constants::Pi));
+			return Double3(0, 0.25 + multiplier, 0.5 + multiplier);
 		});
 
 SoftwareRenderer::SoftwareRenderer()
@@ -3113,20 +3118,8 @@ void SoftwareRenderer::drawPixels(int x, const DrawRange &drawRange, double dept
 			colorG += (fogColor.y - colorG) * fogPercent;
 			colorB += (fogColor.z - colorB) * fogPercent;
 
-			// Clamp maximum (don't worry about negative values).
-			const double high = 1.0;
-			colorR = (colorR > high) ? high : colorR;
-			colorG = (colorG > high) ? high : colorG;
-			colorB = (colorB > high) ? high : colorB;
-
-			// Convert floats to integers.
-			/*const uint32_t colorRGB = static_cast<uint32_t>(
-				((static_cast<uint8_t>(colorR * 255.0)) << 16) |
-				((static_cast<uint8_t>(colorG * 255.0)) << 8) |
-				((static_cast<uint8_t>(colorB * 255.0))));*/
-
 			const uint32_t colorRGB = material.shaded(Double3(colorR, colorG, colorB),
-									Double2(u, yPercent),
+									Double2(u, v),
 									Double3(0.0, 0.0, 0.0), // @todo: add world position
 									frames);
 
@@ -3225,20 +3218,8 @@ void SoftwareRenderer::drawPerspectivePixels(int x, const DrawRange &drawRange,
 			colorG += (fogColor.y - colorG) * fogPercent;
 			colorB += (fogColor.z - colorB) * fogPercent;
 
-			// Clamp maximum (don't worry about negative values).
-			const double high = 1.0;
-			colorR = (colorR > high) ? high : colorR;
-			colorG = (colorG > high) ? high : colorG;
-			colorB = (colorB > high) ? high : colorB;
-
-			// Convert floats to integers.
-			/*const uint32_t colorRGB = static_cast<uint32_t>(
-				((static_cast<uint8_t>(colorR * 255.0)) << 16) |
-				((static_cast<uint8_t>(colorG * 255.0)) << 8) |
-				((static_cast<uint8_t>(colorB * 255.0))));*/
-
 			const uint32_t colorRGB = material.shaded(Double3(colorR, colorG, colorB),
-									Double2(u, yPercent),
+									Double2(u, v),
 									Double3(0.0, 0.0, 0.0), // @todo: add world position
 									frames);
 
@@ -3323,20 +3304,8 @@ void SoftwareRenderer::drawTransparentPixels(int x, const DrawRange &drawRange, 
 					colorB *= 1.5 + 0.5 * sin (yPercent + frames / 20.0);
 				}*/
 
-				// Clamp maximum (don't worry about negative values).
-				const double high = 1.0;
-				colorR = (colorR > high) ? high : colorR;
-				colorG = (colorG > high) ? high : colorG;
-				colorB = (colorB > high) ? high : colorB;
-
-				// Convert floats to integers.
-				/*const uint32_t colorRGB = static_cast<uint32_t>(
-					((static_cast<uint8_t>(colorR * 255.0)) << 16) |
-					((static_cast<uint8_t>(colorG * 255.0)) << 8) |
-					((static_cast<uint8_t>(colorB * 255.0))));*/
-
 				const uint32_t colorRGB = material.shaded(Double3(colorR, colorG, colorB),
-									Double2(u, yPercent),
+									Double2(u, v),
 									Double3(0.0, 0.0, 0.0), // @todo: add world position
 									frames);
 
@@ -3389,20 +3358,8 @@ void SoftwareRenderer::drawDistantPixels(int x, const DrawRange &drawRange, doub
 			double colorG = texel.g * shading;
 			double colorB = texel.b * shading;
 
-			// Clamp maximum (don't worry about negative values).
-			const double high = 1.0;
-			colorR = (colorR > high) ? high : colorR;
-			colorG = (colorG > high) ? high : colorG;
-			colorB = (colorB > high) ? high : colorB;
-
-			// Convert floats to integers.
-			/*const uint32_t colorRGB = static_cast<uint32_t>(
-				((static_cast<uint8_t>(colorR * 255.0)) << 16) |
-				((static_cast<uint8_t>(colorG * 255.0)) << 8) |
-				((static_cast<uint8_t>(colorB * 255.0))));*/
-
 			const uint32_t colorRGB = material.shaded(Double3(colorR, colorG, colorB),
-									Double2(u, yPercent),
+									Double2(u, v),
 									Double3(0.0, 0.0, 0.0), // @todo: add world position
 									frames);
 
@@ -3477,20 +3434,8 @@ void SoftwareRenderer::drawMoonPixels(int x, const DrawRange &drawRange, double 
 				colorB = gradientColor.z;
 			}
 
-			// Clamp maximum (don't worry about negative values).
-			const double high = 1.0;
-			colorR = (colorR > high) ? high : colorR;
-			colorG = (colorG > high) ? high : colorG;
-			colorB = (colorB > high) ? high : colorB;
-
-			// Convert floats to integers.
-			/*const uint32_t colorRGB = static_cast<uint32_t>(
-				((static_cast<uint8_t>(colorR * 255.0)) << 16) |
-				((static_cast<uint8_t>(colorG * 255.0)) << 8) |
-				((static_cast<uint8_t>(colorB * 255.0))));*/
-
 			const uint32_t colorRGB = material.shaded(Double3(colorR, colorG, colorB),
-									Double2(u, yPercent),
+									Double2(u, v),
 									Double3(0.0, 0.0, 0.0), // @todo: add world position
 									frames);
 
@@ -3563,20 +3508,8 @@ void SoftwareRenderer::drawStarPixels(int x, const DrawRange &drawRange, double 
 				colorG += (gradientColor.y - colorG) * gradientVisPercent;
 				colorB += (gradientColor.z - colorB) * gradientVisPercent;
 
-				// Clamp maximum (don't worry about negative values).
-				const double high = 1.0;
-				colorR = (colorR > high) ? high : colorR;
-				colorG = (colorG > high) ? high : colorG;
-				colorB = (colorB > high) ? high : colorB;
-
-				// Convert floats to integers.
-				/*const uint32_t colorRGB = static_cast<uint32_t>(
-					((static_cast<uint8_t>(colorR * 255.0)) << 16) |
-					((static_cast<uint8_t>(colorG * 255.0)) << 8) |
-					((static_cast<uint8_t>(colorB * 255.0))));*/
-
 				const uint32_t colorRGB = material.shaded(Double3(colorR, colorG, colorB),
-									Double2(u, yPercent),
+									Double2(u, v),
 									Double3(0.0, 0.0, 0.0), // @todo: add world position
 									frames);
 
@@ -4256,6 +4189,24 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 					Constants::JustBelowOne, farNormal, textures.at(chasmData.id),shadingInfo, defaultMaterial,
 					occlusion, frame);
 			}
+
+
+			// Draw chasm bottom (water for now).
+			const Double3 farCeilingPoint(
+				farPoint.x,
+				voxelYReal + voxelHeight - CHASM_FILL_DEPTH,
+				farPoint.y);
+			const Double3 nearCeilingPoint(
+				nearPoint.x,
+				farCeilingPoint.y,
+				nearPoint.y);
+
+			const auto drawRange = SoftwareRenderer::makeDrawRange(
+				farCeilingPoint, nearCeilingPoint, camera, frame);
+
+			SoftwareRenderer::drawPerspectivePixels(x, drawRange, farPoint, nearPoint, farZ,
+				nearZ, Double3::UnitY, textures.at(chasmData.id),shadingInfo, waterMaterial, 
+				occlusion, frame);
 		}
 		else if (voxelData.dataType == VoxelDataType::Door)
 		{
@@ -4955,6 +4906,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 				SoftwareRenderer::drawTransparentPixels(x, drawRange, nearZ, nearU, 0.0,
 					Constants::JustBelowOne, nearNormal, textures.at(chasmData.id),
 					shadingInfo, defaultMaterial, occlusion, frame);
+
 			}
 
 			// Far.
@@ -5400,6 +5352,23 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 					Constants::JustBelowOne, farNormal, textures.at(chasmData.id),
 					shadingInfo, defaultMaterial, occlusion, frame);
 			}
+
+			// Draw chasm bottom (water for now).
+			const Double3 farCeilingPoint(
+				farPoint.x,
+				voxelYReal + voxelHeight - CHASM_FILL_DEPTH,
+				farPoint.y);
+			const Double3 nearCeilingPoint(
+				nearPoint.x,
+				farCeilingPoint.y,
+				nearPoint.y);
+
+			const auto drawRange = SoftwareRenderer::makeDrawRange(
+				farCeilingPoint, nearCeilingPoint, camera, frame);
+
+			SoftwareRenderer::drawPerspectivePixels(x, drawRange, farPoint, nearPoint, farZ,
+				nearZ, Double3::UnitY, textures.at(chasmData.id),shadingInfo, waterMaterial, 
+				occlusion, frame);
 		}
 		else if (voxelData.dataType == VoxelDataType::Door)
 		{
@@ -5951,21 +5920,8 @@ void SoftwareRenderer::drawFlat(int startX, int endX, const Flat::Frame &flatFra
 					colorR += (fogColor.x - colorR) * fogPercent;
 					colorG += (fogColor.y - colorG) * fogPercent;
 					colorB += (fogColor.z - colorB) * fogPercent;
-
-					// Clamp maximum (don't worry about negative values).
-					const double high = 1.0;
-					colorR = (colorR > high) ? high : colorR;
-					colorG = (colorG > high) ? high : colorG;
-					colorB = (colorB > high) ? high : colorB;
-
-					// Convert floats to integers.
-					/*const uint32_t colorRGB = static_cast<uint32_t>(
-						((static_cast<uint8_t>(colorR * 255.0)) << 16) |
-						((static_cast<uint8_t>(colorG * 255.0)) << 8) |
-						((static_cast<uint8_t>(colorB * 255.0))));*/
-
 					const uint32_t colorRGB = material.shaded(Double3(colorR, colorG, colorB),
-									Double2(u, yPercent),
+									Double2(u, v),
 									Double3(0.0, 0.0, 0.0), // @todo: add world position
 									frames);
 
@@ -6392,6 +6348,7 @@ void SoftwareRenderer::renderThreadLoop(RenderThreadData &threadData, int thread
 		// lock it.
 		std::unique_lock<std::mutex> lk(threadData.mutex);
 		threadData.condVar.wait(lk, [&threadData]() { return threadData.go; });
+
 		lk.unlock();
 
 		// Received a go signal. Check if the renderer is being destroyed before doing anything.
@@ -6416,12 +6373,13 @@ void SoftwareRenderer::renderThreadLoop(RenderThreadData &threadData, int thread
 			else
 			{
 				// Wait for other threads to finish.
-				threadData.condVar.wait(lk, [&threadData, &data]()
+				/*threadData.condVar.wait(lk, [&threadData, &data]()
 				{
 					return data.threadsDone == threadData.totalThreads;
-				});
+				});*/
+				threadData.condVar.wait(lk);
 
-				lk.unlock();
+				lk.unlock();	
 			}
 		};
 

@@ -391,6 +391,9 @@ private:
 	static const double NEAR_PLANE;
 	static const double FAR_PLANE;
 
+	// Depth of chasm filling (water / lava / etc)
+	static const double CHASM_FILL_DEPTH;
+
 	// Default texture array sizes (using vector instead of array to avoid stack overflow).
 	static const int DEFAULT_VOXEL_TEXTURE_COUNT;
 	static const int DEFAULT_FLAT_TEXTURE_COUNT;
@@ -407,6 +410,7 @@ private:
 	// material declaration goes here
 	static RenderMaterial defaultMaterial;
 	static RenderMaterial usableMaterial;
+	static RenderMaterial waterMaterial;
 
 	std::vector<double> depthBuffer; // 2D buffer, mostly consists of depth in the XZ plane.
 	std::vector<OcclusionData> occlusion; // Min and max Y for each column.

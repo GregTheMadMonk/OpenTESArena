@@ -2039,18 +2039,51 @@ void GameWorldPanel::drawDebugText(Renderer &renderer)
 	const auto &worldData = gameData.getWorldData();
 	const auto &level = worldData.getActiveLevel();
 
+	const auto &voxelGrid = level.getVoxelGrid();
+	const auto &underVoxelData = voxelGrid.getVoxelData(voxelGrid.getVoxel(position.x, position.y - 1.0, position.z));
+
+	const std::string underVoxelType = [&underVoxelData]()
+	{
+		switch (underVoxelData.dataType)
+		{
+			case VoxelDataType::None:
+				return "None";
+			case VoxelDataType::Wall:
+				return "Wall";
+			case VoxelDataType::Floor:
+				return "Floor";
+			case VoxelDataType::Ceiling:
+				return "Ceiling";
+			case VoxelDataType::Raised:
+				return "Raised";
+			case VoxelDataType::Diagonal:
+				return "Diagonal";
+			case VoxelDataType::TransparentWall:
+				return "TransparentWall";
+			case VoxelDataType::Edge:
+				return "Edge";
+			case VoxelDataType::Chasm:
+				return "Chasm";
+			case VoxelDataType::Door:
+				return "Door";
+			default:
+				return "Unknown";
+		}
+	}();
+
 	const std::string text =
 		"Screen: " + std::to_string(windowDims.x) + "x" + std::to_string(windowDims.y) + "\n" +
 		"Resolution scale: " + String::fixedPrecision(resolutionScale, 2) + "\n" +
 		"FPS: " + String::fixedPrecision(fpsCounter.getFPS(), 1) + "\n" +
 		"Map: " + worldData.getMifName() + "\n" +
 		"Info: " + level.getInfFile().getName() + "\n" +
-		"X: " + String::fixedPrecision(position.x, 5) + "\n" +
-		"Y: " + String::fixedPrecision(position.y, 5) + "\n" +
-		"Z: " + String::fixedPrecision(position.z, 5) + "\n" +
-		"DirX: " + String::fixedPrecision(direction.x, 5) + "\n" +
-		"DirY: " + String::fixedPrecision(direction.y, 5) + "\n" +
-		"DirZ: " + String::fixedPrecision(direction.z, 5) + "\n\n" +
+		"Pos (X, Y, Z) = (" + String::fixedPrecision(position.x, 5) + ", " +
+		String::fixedPrecision(position.y, 5) + ", " +
+		String::fixedPrecision(position.z, 5) + ")\n" +
+		"Dir (X, Y, Z) = (" + String::fixedPrecision(direction.x, 5) + ", " +
+		String::fixedPrecision(direction.y, 5) + ", " +
+		String::fixedPrecision(direction.z, 5) + ")\n\n" +
+		"Stepped on " + underVoxelType + "\n\n\n\n" +
 		"FPS Graph:" + "\n" +
 		"                               " + std::to_string(static_cast<int>(targetFps)) + "\n\n\n\n" +
 		"                               " + std::to_string(static_cast<int>(minFps));

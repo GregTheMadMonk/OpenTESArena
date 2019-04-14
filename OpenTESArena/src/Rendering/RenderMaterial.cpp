@@ -25,7 +25,7 @@ uint32_t RenderMaterial::shaded(const Double3 &baseColor, const Double2 &texCoor
 	const Double3 res = this->shade(baseColor, texCoord, worldPosition, time);
 
 	return static_cast<uint32_t>(
-		((static_cast<uint8_t>(res.x * 255.0)) << 16) |
-		((static_cast<uint8_t>(res.y * 255.0)) << 8) |
-		((static_cast<uint8_t>(res.z * 255.0))));
+		((static_cast<uint8_t>(((res.x > 1.0)?1.0:res.x) * 255.0)) << 16) |
+		((static_cast<uint8_t>(((res.y > 1.0)?1.0:res.y) * 255.0)) << 8) |
+		((static_cast<uint8_t>(((res.z > 1.0)?1.0:res.z) * 255.0))));
 }
