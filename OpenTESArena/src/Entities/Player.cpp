@@ -357,7 +357,8 @@ void Player::handleCollision(const WorldData &worldData, double dt)
 	this->velocity.y = 0.0;
 	// -- end hack --
 
-	// @todo: rotate the box or make a cylinder? Seems fine as it is now
+	// @todo: rotate the box or make a cylinder?
+	// known problems: colliding with diagonal walls woks lie it's a solid "box" voxel
 }
 
 void Player::setVelocityToZero()

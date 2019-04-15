@@ -612,23 +612,36 @@ const double SoftwareRenderer::TALL_PIXEL_RATIO = 1.20;
 
 int SoftwareRenderer::frames = 0;
 
-RenderMaterial SoftwareRenderer::defaultMaterial = RenderMaterial(
+const RenderMaterial SoftwareRenderer::defaultMaterial = RenderMaterial(
 		[](const Double3 &baseColor, const Double2 &texCoord, const Double3 &worldPosition, const int &time)
 		{
 			return baseColor;
 		});
-RenderMaterial SoftwareRenderer::usableMaterial = RenderMaterial(
+const RenderMaterial SoftwareRenderer::usableMaterial = RenderMaterial(
 		[](const Double3 &baseColor, const Double2 &texCoord, const Double3 &worldPosition, const int &time)
 		{
 			const double multiplier = (1.5 + 0.5 * sin(texCoord.x + texCoord.y + time / 20.0));
 			return baseColor * multiplier;
 		});
-RenderMaterial SoftwareRenderer::waterMaterial = RenderMaterial(	
+const RenderMaterial SoftwareRenderer::waterMaterial = RenderMaterial(	
 		[](const Double3 &baseColor, const Double2 &texCoord, const Double3 &worldPosition, const int &time)
 		{
 			const double multiplier = 0.1 * sin(time / 20.0) * (sin(texCoord.x * 6 * Constants::Pi) + sin(texCoord.y * 6 * Constants::Pi));
 			return Double3(0, 0.25 + multiplier, 0.5 + multiplier);
 		});
+const RenderMaterial SoftwareRenderer::lavaMaterial = RenderMaterial(
+		[](const Double3 &baseColor, const Double2 &texCoord, const Double3 &worldPosition, const int &time)
+		{
+			const double multiplier = 0.1 * sin(time / 20.0) * (sin(texCoord.x * 6 * Constants::Pi) + sin(texCoord.y * 6 * Constants::Pi));
+			return Double3(0.9 + multiplier, 0.5 + multiplier, 0.0);
+		});
+const RenderMaterial SoftwareRenderer::voidMaterial = RenderMaterial(
+		[](const Double3 &baseColor, const Double2 &texCoord, const Double3 &worldPosition, const int &time)
+		{
+			// could draw some dust blinking or other neat effects
+			return Double3(0.0, 0.0, 0.0);
+		});
+		
 
 SoftwareRenderer::SoftwareRenderer()
 {
@@ -4192,6 +4205,21 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 
 
 			// Draw chasm bottom (water for now).
+			const RenderMaterial chasmBottomMaterial = [chasmData] ()
+			{
+				switch (chasmData.type)
+				{
+					case VoxelData::ChasmData::Type::Dry:
+						return voidMaterial;
+					case VoxelData::ChasmData::Type::Wet:
+						return waterMaterial;
+					case VoxelData::ChasmData::Type::Lava:
+						return lavaMaterial;
+					default:
+						return defaultMaterial;
+				}
+			}();
+
 			const Double3 farCeilingPoint(
 				farPoint.x,
 				voxelYReal + voxelHeight - CHASM_FILL_DEPTH,
@@ -4205,7 +4233,7 @@ void SoftwareRenderer::drawInitialVoxelColumn(int x, int voxelX, int voxelZ, con
 				farCeilingPoint, nearCeilingPoint, camera, frame);
 
 			SoftwareRenderer::drawPerspectivePixels(x, drawRange, farPoint, nearPoint, farZ,
-				nearZ, Double3::UnitY, textures.at(chasmData.id),shadingInfo, waterMaterial, 
+				nearZ, Double3::UnitY, textures.at(chasmData.id),shadingInfo, chasmBottomMaterial, 
 				occlusion, frame);
 		}
 		else if (voxelData.dataType == VoxelDataType::Door)
@@ -5353,7 +5381,22 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 					shadingInfo, defaultMaterial, occlusion, frame);
 			}
 
-			// Draw chasm bottom (water for now).
+			// Draw chasm bottom (water for now).	
+			const RenderMaterial chasmBottomMaterial = [chasmData] ()
+			{
+				switch (chasmData.type)
+				{
+					case VoxelData::ChasmData::Type::Dry:
+						return voidMaterial;
+					case VoxelData::ChasmData::Type::Wet:
+						return waterMaterial;
+					case VoxelData::ChasmData::Type::Lava:
+						return lavaMaterial;
+					default:
+						return defaultMaterial;
+				}
+			}();
+
 			const Double3 farCeilingPoint(
 				farPoint.x,
 				voxelYReal + voxelHeight - CHASM_FILL_DEPTH,
@@ -5367,7 +5410,7 @@ void SoftwareRenderer::drawVoxelColumn(int x, int voxelX, int voxelZ, const Came
 				farCeilingPoint, nearCeilingPoint, camera, frame);
 
 			SoftwareRenderer::drawPerspectivePixels(x, drawRange, farPoint, nearPoint, farZ,
-				nearZ, Double3::UnitY, textures.at(chasmData.id),shadingInfo, waterMaterial, 
+				nearZ, Double3::UnitY, textures.at(chasmData.id),shadingInfo, chasmBottomMaterial, 
 				occlusion, frame);
 		}
 		else if (voxelData.dataType == VoxelDataType::Door)

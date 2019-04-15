@@ -408,9 +408,11 @@ private:
 	static const double DISTANT_CLOUDS_MAX_ANGLE;
 
 	// material declaration goes here
-	static RenderMaterial defaultMaterial;
-	static RenderMaterial usableMaterial;
-	static RenderMaterial waterMaterial;
+	static const RenderMaterial defaultMaterial;
+	static const RenderMaterial usableMaterial;
+	static const RenderMaterial waterMaterial;
+	static const RenderMaterial lavaMaterial;
+	static const RenderMaterial voidMaterial;
 
 	std::vector<double> depthBuffer; // 2D buffer, mostly consists of depth in the XZ plane.
 	std::vector<OcclusionData> occlusion; // Min and max Y for each column.
