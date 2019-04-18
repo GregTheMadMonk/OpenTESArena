@@ -612,36 +612,47 @@ const double SoftwareRenderer::TALL_PIXEL_RATIO = 1.20;
 
 int SoftwareRenderer::frames = 0;
 
-const RenderMaterial SoftwareRenderer::defaultMaterial = RenderMaterial(
-		[](const Double3 &baseColor, const Double2 &texCoord, const Double3 &worldPosition, const int &time)
+const RenderMaterial SoftwareRenderer::defaultMaterial = RenderMaterial::createLit(
+		[](const Double3 &texColor, const Double2 &texCoord, const Double3 &worldPosition, const Double3 &worldNormal, const int &time)
 		{
-			return baseColor;
-		});
-const RenderMaterial SoftwareRenderer::usableMaterial = RenderMaterial(
-		[](const Double3 &baseColor, const Double2 &texCoord, const Double3 &worldPosition, const int &time)
+			return texColor;
+		},
+		nullptr);
+const RenderMaterial SoftwareRenderer::defaultDistantMaterial = RenderMaterial::createDistant(
+		[](const Double3 &texColor, const Double2 &texCoord, const double &theta, const int &time)
 		{
-			const double multiplier = (1.5 + 0.5 * sin(texCoord.x + texCoord.y + time / 20.0));
-			return baseColor * multiplier;
+			return texColor;
 		});
-const RenderMaterial SoftwareRenderer::waterMaterial = RenderMaterial(	
-		[](const Double3 &baseColor, const Double2 &texCoord, const Double3 &worldPosition, const int &time)
+const RenderMaterial SoftwareRenderer::usableMaterial = RenderMaterial::createLit(
+		[](const Double3 &texColor, const Double2 &texCoord, const Double3 &worldPosition, const Double3 &worldNormal, const int &time)
+		{
+			return texColor;
+		},
+		[](const Double3 &texColor, const Double2 &texCoord, const Double3 &worldPosition, const Double3 &worldNormal, const int &time)
+		{
+			const double multiplier = 1.0 + sin((texCoord.x + texCoord.y) * 2 * Constants::Pi + time / 10.0);
+			return texColor * multiplier;
+		});
+const RenderMaterial SoftwareRenderer::waterMaterial = RenderMaterial::createLit(
+		[](const Double3 &texColor, const Double2 &texCoord, const Double3 &worldPosition, const Double3 &worldNormal, const int &time)
 		{
 			const double multiplier = 0.1 * sin(time / 20.0) * (sin(texCoord.x * 6 * Constants::Pi) + sin(texCoord.y * 6 * Constants::Pi));
 			return Double3(0, 0.25 + multiplier, 0.5 + multiplier);
-		});
-const RenderMaterial SoftwareRenderer::lavaMaterial = RenderMaterial(
-		[](const Double3 &baseColor, const Double2 &texCoord, const Double3 &worldPosition, const int &time)
+		},
+		nullptr
+		);
+const RenderMaterial SoftwareRenderer::lavaMaterial = RenderMaterial::createUnlit(
+		[](const Double3 &baseColor, const Double2 &texCoord, const Double3 &worldPosition, const Double3 &worldNormal, const int &time)
 		{
 			const double multiplier = 0.1 * sin(time / 20.0) * (sin(texCoord.x * 6 * Constants::Pi) + sin(texCoord.y * 6 * Constants::Pi));
 			return Double3(0.9 + multiplier, 0.5 + multiplier, 0.0);
 		});
-const RenderMaterial SoftwareRenderer::voidMaterial = RenderMaterial(
-		[](const Double3 &baseColor, const Double2 &texCoord, const Double3 &worldPosition, const int &time)
+const RenderMaterial SoftwareRenderer::voidMaterial = RenderMaterial::createUnlit(
+		[](const Double3 &baseColor, const Double2 &texCoord, const Double3 &worldPosition, const Double3 &worldNormal, const int &time)
 		{
 			// could draw some dust blinking or other neat effects
 			return Double3(0.0, 0.0, 0.0);
 		});
-		
 
 SoftwareRenderer::SoftwareRenderer()
 {
@@ -3131,11 +3142,12 @@ void SoftwareRenderer::drawPixels(int x, const DrawRange &drawRange, double dept
 			colorG += (fogColor.y - colorG) * fogPercent;
 			colorB += (fogColor.z - colorB) * fogPercent;
 
-			const uint32_t colorRGB = material.shaded(Double3(colorR, colorG, colorB),
-									Double2(u, v),
-									Double3(0.0, 0.0, 0.0), // @todo: add world position
-									frames);
-
+			const uint32_t colorRGB = material.shadedPixelScreen(Double3(colorR, colorG, colorB),
+										Double2(u, v), 
+										Double3(0.0, 0.0, 0.0), // @todo: add world position
+										normal,
+										frames);
+	
 			frame.colorBuffer[index] = colorRGB;
 			frame.depthBuffer[index] = depth;
 		}
@@ -3231,10 +3243,11 @@ void SoftwareRenderer::drawPerspectivePixels(int x, const DrawRange &drawRange,
 			colorG += (fogColor.y - colorG) * fogPercent;
 			colorB += (fogColor.z - colorB) * fogPercent;
 
-			const uint32_t colorRGB = material.shaded(Double3(colorR, colorG, colorB),
-									Double2(u, v),
-									Double3(0.0, 0.0, 0.0), // @todo: add world position
-									frames);
+			const uint32_t colorRGB = material.shadedPixelScreen(Double3(colorR, colorG, colorB),
+										Double2(u, v),
+										Double3(0.0, 0.0, 0.0), // @todo: add world position
+										normal,
+										frames);
 
 			frame.colorBuffer[index] = colorRGB;
 			frame.depthBuffer[index] = depth;
@@ -3317,11 +3330,12 @@ void SoftwareRenderer::drawTransparentPixels(int x, const DrawRange &drawRange, 
 					colorB *= 1.5 + 0.5 * sin (yPercent + frames / 20.0);
 				}*/
 
-				const uint32_t colorRGB = material.shaded(Double3(colorR, colorG, colorB),
-									Double2(u, v),
-									Double3(0.0, 0.0, 0.0), // @todo: add world position
-									frames);
-
+				const uint32_t colorRGB = material.shadedPixelScreen(Double3(colorR, colorG, colorB),
+											Double2(u, v),
+											Double3(0.0, 0.0, 0.0), // @todo: add world position
+											normal,
+											frames);
+						
 				frame.colorBuffer[index] = colorRGB;
 				frame.depthBuffer[index] = depth;
 			}
@@ -3371,10 +3385,10 @@ void SoftwareRenderer::drawDistantPixels(int x, const DrawRange &drawRange, doub
 			double colorG = texel.g * shading;
 			double colorB = texel.b * shading;
 
-			const uint32_t colorRGB = material.shaded(Double3(colorR, colorG, colorB),
-									Double2(u, v),
-									Double3(0.0, 0.0, 0.0), // @todo: add world position
-									frames);
+			const uint32_t colorRGB = material.shadedPixelDistant(Double3(colorR, colorG, colorB),
+										Double2(u, v),
+										0.0, // @todo: add theta
+										frames).toARGB() & 0x00ffffff;
 
 			frame.colorBuffer[index] = colorRGB;
 		}
@@ -3447,10 +3461,10 @@ void SoftwareRenderer::drawMoonPixels(int x, const DrawRange &drawRange, double 
 				colorB = gradientColor.z;
 			}
 
-			const uint32_t colorRGB = material.shaded(Double3(colorR, colorG, colorB),
-									Double2(u, v),
-									Double3(0.0, 0.0, 0.0), // @todo: add world position
-									frames);
+			const uint32_t colorRGB = material.shadedPixelDistant(Double3(colorR, colorG, colorB),
+										Double2(u, v),
+										0.0, // @todo: add theta
+										frames).toARGB() & 0x00ffffff;
 
 			frame.colorBuffer[index] = colorRGB;
 		}
@@ -3521,10 +3535,10 @@ void SoftwareRenderer::drawStarPixels(int x, const DrawRange &drawRange, double 
 				colorG += (gradientColor.y - colorG) * gradientVisPercent;
 				colorB += (gradientColor.z - colorB) * gradientVisPercent;
 
-				const uint32_t colorRGB = material.shaded(Double3(colorR, colorG, colorB),
-									Double2(u, v),
-									Double3(0.0, 0.0, 0.0), // @todo: add world position
-									frames);
+				const uint32_t colorRGB = material.shadedPixelDistant(Double3(colorR, colorG, colorB),
+											Double2(u, v),
+											0.0,
+											frames).toARGB() & 0x00ffffff;
 
 				frame.colorBuffer[index] = colorRGB;
 			}
@@ -5963,10 +5977,12 @@ void SoftwareRenderer::drawFlat(int startX, int endX, const Flat::Frame &flatFra
 					colorR += (fogColor.x - colorR) * fogPercent;
 					colorG += (fogColor.y - colorG) * fogPercent;
 					colorB += (fogColor.z - colorB) * fogPercent;
-					const uint32_t colorRGB = material.shaded(Double3(colorR, colorG, colorB),
-									Double2(u, v),
-									Double3(0.0, 0.0, 0.0), // @todo: add world position
-									frames);
+
+					const uint32_t colorRGB = material.shadedPixelScreen(Double3(colorR, colorG, colorB),
+												Double2(u, v),
+												Double3(0.0, 0.0, 0.0), // @todo: add world position
+												normal, 
+												frames);
 
 					frame.colorBuffer[index] = colorRGB;
 					frame.depthBuffer[index] = depth;
@@ -6252,17 +6268,17 @@ void SoftwareRenderer::drawDistantSky(int startX, int endX, bool parallaxSky,
 				if (renderType == DistantRenderType::General)
 				{
 					SoftwareRenderer::drawDistantPixels(x, drawRange, u, 0.0,
-						Constants::JustBelowOne, texture, emissive,shadingInfo, defaultMaterial, frame);
+						Constants::JustBelowOne, texture, emissive,shadingInfo, defaultDistantMaterial, frame);
 				}
 				else if (renderType == DistantRenderType::Moon)
 				{
 					SoftwareRenderer::drawMoonPixels(x, drawRange, u, 0.0, Constants::JustBelowOne,
-						texture,shadingInfo, defaultMaterial, frame);
+						texture,shadingInfo, defaultDistantMaterial, frame);
 				}
 				else if (renderType == DistantRenderType::Star)
 				{
 					SoftwareRenderer::drawStarPixels(x, drawRange, u, 0.0, Constants::JustBelowOne,
-						texture, skyGradientRowCache, shadingInfo, defaultMaterial, frame);
+						texture, skyGradientRowCache, shadingInfo, defaultDistantMaterial, frame);
 				}
 			}
 		}
@@ -6285,17 +6301,17 @@ void SoftwareRenderer::drawDistantSky(int startX, int endX, bool parallaxSky,
 				if (renderType == DistantRenderType::General)
 				{
 					SoftwareRenderer::drawDistantPixels(x, drawRange, u, 0.0,
-						Constants::JustBelowOne, texture, emissive,shadingInfo, defaultMaterial, frame);
+						Constants::JustBelowOne, texture, emissive,shadingInfo, defaultDistantMaterial, frame);
 				}
 				else if (renderType == DistantRenderType::Moon)
 				{
 					SoftwareRenderer::drawMoonPixels(x, drawRange, u, 0.0, Constants::JustBelowOne,
-						texture,shadingInfo, defaultMaterial, frame);
+						texture,shadingInfo, defaultDistantMaterial, frame);
 				}
 				else if (renderType == DistantRenderType::Star)
 				{
 					SoftwareRenderer::drawStarPixels(x, drawRange, u, 0.0, Constants::JustBelowOne,
-						texture, skyGradientRowCache, shadingInfo, defaultMaterial, frame);
+						texture, skyGradientRowCache, shadingInfo, defaultDistantMaterial, frame);
 				}
 			}
 		}

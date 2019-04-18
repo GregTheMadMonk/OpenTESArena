@@ -409,6 +409,7 @@ private:
 
 	// material declaration goes here
 	static const RenderMaterial defaultMaterial;
+	static const RenderMaterial defaultDistantMaterial;
 	static const RenderMaterial usableMaterial;
 	static const RenderMaterial waterMaterial;
 	static const RenderMaterial lavaMaterial;
