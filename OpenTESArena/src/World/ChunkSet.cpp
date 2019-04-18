@@ -3,24 +3,24 @@
 #include "ChunkSet.h"
 
 template <typename T>
-auto ChunkSet<T>::getIter(const Int2 &point, const ChunkList &chunks)
+auto ChunkSet<T>::getIter(int x, int y, const std::vector<T> &chunks)
 {
 	const auto iter = std::find_if(this->chunks.begin(), this->chunks.end(),
-		[&point](const auto &pair)
+		[x, y](const T &chunk)
 	{
-		return pair.first == point;
+		return (chunk.getX() == x) && (chunk.getY() == y);
 	});
 
 	return iter;
 }
 
 template <typename T>
-auto ChunkSet<T>::getIter(const Int2 &point, const ChunkList &chunks) const
+auto ChunkSet<T>::getIter(int x, int y, const std::vector<T> &chunks) const
 {
 	const auto iter = std::find_if(this->chunks.begin(), this->chunks.end(),
-		[&point](const auto &pair)
+		[x, y](const T &chunk)
 	{
-		return pair.first == point;
+		return (chunk.getX() == x) && (chunk.getY() == y);
 	});
 
 	return iter;
@@ -33,71 +33,55 @@ int ChunkSet<T>::getCount() const
 }
 
 template <typename T>
-T *ChunkSet<T>::get(const Int2 &point)
+T *ChunkSet<T>::get(int x, int y)
 {
-	const auto iter = this->getIter(point, this->chunks);
-	return (iter != this->chunks.end()) ? &iter->second : nullptr;
+	const auto iter = this->getIter(x, y, this->chunks);
+	return (iter != this->chunks.end()) ? &(*iter) : nullptr;
 }
 
 template <typename T>
-const T *ChunkSet<T>::get(const Int2 &point) const
+const T *ChunkSet<T>::get(int x, int y) const
 {
-	const auto iter = this->getIter(point, this->chunks);
-	return (iter != this->chunks.end()) ? &iter->second : nullptr;
+	const auto iter = this->getIter(x, y, this->chunks);
+	return (iter != this->chunks.end()) ? &(*iter) : nullptr;
 }
 
 template <typename T>
-std::pair<Int2, T> *ChunkSet<T>::getAt(int index)
+T *ChunkSet<T>::get(int index)
 {
 	return (index < this->getCount()) ? &this->chunks.at(index) : nullptr;
 }
 
 template <typename T>
-const std::pair<Int2, T> *ChunkSet<T>::getAt(int index) const
+const T *ChunkSet<T>::get(int index) const
 {
 	return (index < this->getCount()) ? &this->chunks.at(index) : nullptr;
 }
 
 template <typename T>
-void ChunkSet<T>::set(const Int2 &point, const T &chunk)
+T &ChunkSet<T>::insert(int x, int y)
 {
-	const auto iter = this->getIter(point, this->chunks);
+	const auto iter = this->getIter(x, y, this->chunks);
 
 	// Add if it doesn't exist, overwrite if it does.
 	const bool exists = iter != this->chunks.end();
 
 	if (exists)
 	{
-		*iter = std::make_pair(point, chunk);
+		*iter = T(x, y);
+		return *iter;
 	}
 	else
 	{
-		this->chunks.push_back(std::make_pair(point, chunk));
+		this->chunks.push_back(T(x, y));
+		return this->chunks.back();
 	}
 }
 
 template <typename T>
-void ChunkSet<T>::set(const Int2 &point, T &&chunk)
+void ChunkSet<T>::remove(int x, int y)
 {
-	const auto iter = this->getIter(point, this->chunks);
-
-	// Add if it doesn't exist, overwrite if it does.
-	const bool exists = iter != this->chunks.end();
-
-	if (exists)
-	{
-		*iter = std::make_pair(point, std::move(chunk));
-	}
-	else
-	{
-		this->chunks.push_back(std::make_pair(point, std::move(chunk)));
-	}
-}
-
-template <typename T>
-void ChunkSet<T>::remove(const Int2 &point)
-{
-	const auto iter = this->getIter(point, this->chunks);
+	const auto iter = this->getIter(x, y, this->chunks);
 
 	// Remove if the chunk exists.
 	const bool exists = iter != this->chunks.end();
