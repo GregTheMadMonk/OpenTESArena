@@ -62,11 +62,12 @@ void RenderMaterial::setDistantShader(Double3 (*distantShader)(const Double3&, c
 	this->shaderDistant = distantShader;
 }
 
-Double4 RenderMaterial::shadedPixelEmission(const Double3 &texColor, const Double2 &texCoord, const Double3 &worldPosition, const Double3 &worldNormal, const int &time) const
+Double4 RenderMaterial::shadedPixelEmission(const Double3 &baseColor, const Double3 &emissiveColor, const Double2 &texCoord, const Double3 &worldPosition, const Double3 &worldNormal, const int &time) const
 {
+	// Result is Double4(Red, Green, Blue, Intensity)
 	if (this->shaderEmission == nullptr) return Double4(0.0, 0.0, 0.0, 1.0);
 
-	const Double3 rescolor = this->shaderEmission(texColor, texCoord, worldPosition, worldNormal, time);
+	const Double3 rescolor = this->shaderEmission(baseColor, texCoord, worldPosition, worldNormal, time) + emissiveColor;
 	const double amp = std::max(std::max(rescolor.x, rescolor.y), rescolor.z);
 
 	if (amp <= 1.0) return Double4(
@@ -82,12 +83,18 @@ Double4 RenderMaterial::shadedPixelEmission(const Double3 &texColor, const Doubl
 		amp);
 }
 
-Double4 RenderMaterial::shadedPixelBase(const Double3 &texColor, const Double2 &texCoord, const Double3 &worldPosition, const Double3 &worldNormal, const int &time) const
+Double4 RenderMaterial::shadedPixelBase(const Double3 &texColor, const Double2 &texCoord, const Double3 &worldPosition, const Double3 &worldNormal, const Double3 &shading, const int &time) const
 {
-	// put in result 4 bytes: inverted opacity if transparent, 1 byte R, 1 byte G, 1 byte B, where R, G, B are cropped at level of 255
+	// Result is Double4(Red, Green, Blue, Opacity)
 	if (this->shaderBase == nullptr) return Double4(0.0, 0.0, 0.0, 1.0);
 
-	const Double3 res = this->shaderBase(texColor, texCoord, worldPosition, worldNormal, time);
+	const Double3 res = [this, texColor, texCoord, worldPosition, worldNormal, shading, time]()
+	{
+		const Double3 base = this->shaderBase(texColor, texCoord, worldPosition, worldNormal, time);
+		return Double3(base.x * std::min(shading.x, 1.0),
+				base.y * std::min(shading.y, 1.0),
+				base.z * std::min(shading.z, 1.0));
+	}();
 
 	if ((this->domain == MaterialDomain::Transparent) && (this->shaderOpacity != nullptr)) 
 		return Double4(
@@ -136,51 +143,29 @@ Double4 RenderMaterial::shadedPixelDistant(const Double3 &texColor, const Double
 
 }
 
-uint64_t RenderMaterial::shadedPixel(const Double3 &texColor, const Double2 &texCoord, const Double3 &worldPosition, const Double3 &worldNormal, const int &time) const
+Double4 RenderMaterial::shadedPixelScreen(const Double3 &baseColor, const Double3 &emissiveColor, const Double2 &texCoord, const Double3 &worldPosition, const Double3 &worldNormal, const Double3 &shading, const int &time) const
 {
-	// Result format is 4 bytes of base color followed by 4 bytes of emissive color. Basically, it is everything you can know about shader calculation result
-	
-	const uint32_t emissive = [this, texColor, texCoord, worldPosition, worldNormal, time]()
-	{
-		if (this->domain == MaterialDomain::Distant) return this->shadedPixelDistant(texColor, texCoord, worldPosition.x, time).toARGB(); // put distant theta in worldPosition.x
-		
-		return this->shadedPixelEmission(texColor, texCoord, worldPosition, worldNormal, time).toARGB();
-	}();
-
-	if ((this->domain == MaterialDomain::Unlit) || (this->domain == MaterialDomain::Distant)) return static_cast<uint64_t>(emissive);
-
-	const uint32_t base = this->shadedPixelBase(texColor, texCoord, worldPosition, worldNormal, time).toARGB();
-
-	return (static_cast<uint64_t>(base) << 32) | static_cast<uint64_t>(emissive);
-}
-
-uint32_t RenderMaterial::shadedPixelScreen(const Double3 &texColor, const Double2 &texCoord, const Double3 &worldPosition, const Double3 &worldNormal, const int &time) const
-{
-	// Returns 0x00RRGGBB without any additional info
-	if (this->domain == MaterialDomain::Distant) return this->shadedPixelDistant(texColor, texCoord, worldPosition.x, time).toARGB();
+	// Returns Double4(R, G, B, A)
+	if (this->domain == MaterialDomain::Distant) return this->shadedPixelDistant(emissiveColor, texCoord, worldPosition.x, time);
 
 	if (this->domain == MaterialDomain::Unlit)
-		return static_cast<uint32_t>(this->shadedPixelEmission(texColor, texCoord, worldPosition, worldNormal, time).toARGB() & static_cast<uint32_t>(0x00ffffff));
+		return this->shadedPixelEmission(baseColor, emissiveColor, texCoord, worldPosition, worldNormal, time);
 
-	const Double3 emission = [this, texColor, texCoord, worldPosition, worldNormal, time]()
+	const Double4 emission = [this, baseColor, emissiveColor, texCoord, worldPosition, worldNormal, time]()
 	{
-		if (this->shaderEmission == nullptr) return Double3(0.0, 0.0, 0.0);
-		return this->shaderEmission(texColor, texCoord, worldPosition, worldNormal, time);
+		if (this->shaderEmission == nullptr) return Double4(0.0, 0.0, 0.0, 1.0);
+		return this->shadedPixelEmission(baseColor, emissiveColor, texCoord, worldPosition, worldNormal, time);
 	}();
 
-	const Double3 base = [this, texColor, texCoord, worldPosition, worldNormal, time]()
+	const Double4 base = [this, baseColor, texCoord, worldPosition, worldNormal, shading, time]()
 	{
-		if (this->shaderBase == nullptr) Double3(0.0, 0.0, 0.0);
-		return this->shaderBase(texColor, texCoord, worldPosition, worldNormal, time);
+		if (this->shaderBase == nullptr) Double4(0.0, 0.0, 0.0, 1.0);
+		return this->shadedPixelBase(baseColor, texCoord, worldPosition, worldNormal, shading, time);
 	}();
 
-	// @todo: base shader
-	return static_cast<uint32_t>(
-			(static_cast<uint8_t>(std::min(1.0, std::max(emission.x, base.x)) * 255.0) << 16) |
-			(static_cast<uint8_t>(std::min(1.0, std::max(emission.y, base.y)) * 255.0) << 8) |
-			(static_cast<uint8_t>(std::min(1.0, std::max(emission.z, base.z)) * 255.0)));
-
-	// emission in Lit & Transparent materials beats base shading color
-	//return static_cast<uint32_t>(this->shadedPixelEmission(texColor, texCoord, worldPosition, worldNormal, time) & static_cast<uint32_t>(0x00ffffff));
-
+	return Double4(
+			std::min(1.0, std::max(emission.x, base.x)),
+			std::min(1.0, std::max(emission.y, base.y)),
+			std::min(1.0, std::max(emission.z, base.z)),
+			base.w);
 }

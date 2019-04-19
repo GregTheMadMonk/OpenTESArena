@@ -26,9 +26,6 @@ public:
 		Distant		// almost same as Unlit, but normal is not passed
 	};
 
-	// Helper functions
-	static uint32_t toColorInt(const double &alpha, const Double3 &color);
-	
 	MaterialDomain domain;
 
 	// Constructors
@@ -58,10 +55,10 @@ public:
 	void setDistantShader(Double3 (*distantShader)(const Double3&, const Double2&, const double&, const int&));
 
 	// returns the resulting pixel emissive color (for external call)
-	Double4 shadedPixelEmission(const Double3 &texColor, const Double2 &texCoord, const Double3 &worldPosition, const Double3 &worldNormal, const int &time) const;
+	Double4 shadedPixelEmission(const Double3 &baseColor, const Double3 &emissiveColor, const Double2 &texCoord, const Double3 &worldPosition, const Double3 &worldNormal, const int &time) const;
 
 	// returns the resulting lit pixel color 
-	Double4 shadedPixelBase(const Double3 &texColor, const Double2 &texCoord, const Double3 &worldPosition,  const Double3 &worldNormal, const int &time) const;
+	Double4 shadedPixelBase(const Double3 &texColor, const Double2 &texCoord, const Double3 &worldPosition,  const Double3 &worldNormal, const Double3 &shading, const int &time) const;
 
 	// returns the pixel opacity
 	double shadedPixelOpacity(const Double3 &texColor, const Double2 &texCoord, const Double3 &worldPosition, const Double3 &worldNormal,  const int &time) const;
@@ -69,11 +66,8 @@ public:
 	// returns the distant pixel color
 	Double4 shadedPixelDistant(const Double3 &texColor, const Double2 &texCoord, const double &theta, const int &time) const;	
 
-	// full shaded info (is uint64_t a good choice?)
-	uint64_t shadedPixel(const Double3 &texColor, const Double2 &texCoord, const Double3 &worldPosition, const Double3 &worldNormal, const int& time) const;
-
 	// pixel screen color
-	uint32_t shadedPixelScreen(const Double3 &texColor, const Double2 &texCoord, const Double3 &worldPosition, const Double3 &worldNormal, const int &time) const;
+	Double4 shadedPixelScreen(const Double3 &baseColor, const Double3 &emissiveColor, const Double2 &texCoord, const Double3 &worldPosition, const Double3 &worldNormal, const Double3 &shading, const int &time) const;
 };
 
 #endif

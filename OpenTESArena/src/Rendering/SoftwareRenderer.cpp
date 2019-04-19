@@ -3132,7 +3132,7 @@ void SoftwareRenderer::drawPixels(int x, const DrawRange &drawRange, double dept
 			const VoxelTexel &texel = texture.texels[textureIndex];
 
 			// Texture color with shading.
-			const double shadingMax = 1.0;
+			/*const double shadingMax = 1.0;
 			double colorR = texel.r * std::min(shading.x + texel.emission, shadingMax);
 			double colorG = texel.g * std::min(shading.y + texel.emission, shadingMax);
 			double colorB = texel.b * std::min(shading.z + texel.emission, shadingMax);
@@ -3140,13 +3140,17 @@ void SoftwareRenderer::drawPixels(int x, const DrawRange &drawRange, double dept
 			// Linearly interpolate with fog.
 			colorR += (fogColor.x - colorR) * fogPercent;
 			colorG += (fogColor.y - colorG) * fogPercent;
-			colorB += (fogColor.z - colorB) * fogPercent;
+			colorB += (fogColor.z - colorB) * fogPercent;*/
 
-			const uint32_t colorRGB = material.shadedPixelScreen(Double3(colorR, colorG, colorB),
-										Double2(u, v), 
+			const Double4 pixelScreen = material.shadedPixelScreen(Double3(texel.r, texel.g, texel.b),
+										Double3(texel.r, texel.g, texel.b) * texel.emission,
+										Double2(u, v),
 										Double3(0.0, 0.0, 0.0), // @todo: add world position
 										normal,
+										shading,
 										frames);
+
+			const uint32_t colorRGB = (Double3(pixelScreen.x, pixelScreen.y, pixelScreen.z) + (fogColor - Double3(pixelScreen.x, pixelScreen.y, pixelScreen.z)) * fogPercent).toRGB();
 	
 			frame.colorBuffer[index] = colorRGB;
 			frame.depthBuffer[index] = depth;
@@ -3233,7 +3237,7 @@ void SoftwareRenderer::drawPerspectivePixels(int x, const DrawRange &drawRange,
 			const VoxelTexel &texel = texture.texels[textureIndex];
 
 			// Texture color with shading.
-			const double shadingMax = 1.0;
+			/*const double shadingMax = 1.0;
 			double colorR = texel.r * std::min(shading.x + texel.emission, shadingMax);
 			double colorG = texel.g * std::min(shading.y + texel.emission, shadingMax);
 			double colorB = texel.b * std::min(shading.z + texel.emission, shadingMax);
@@ -3241,13 +3245,17 @@ void SoftwareRenderer::drawPerspectivePixels(int x, const DrawRange &drawRange,
 			// Linearly interpolate with fog.
 			colorR += (fogColor.x - colorR) * fogPercent;
 			colorG += (fogColor.y - colorG) * fogPercent;
-			colorB += (fogColor.z - colorB) * fogPercent;
+			colorB += (fogColor.z - colorB) * fogPercent;*/
 
-			const uint32_t colorRGB = material.shadedPixelScreen(Double3(colorR, colorG, colorB),
+			const Double4 pixelScreen = material.shadedPixelScreen(Double3(texel.r, texel.g, texel.b),
+										Double3(texel.r, texel.g, texel.b) * texel.emission,
 										Double2(u, v),
 										Double3(0.0, 0.0, 0.0), // @todo: add world position
 										normal,
+										shading,
 										frames);
+
+			const uint32_t colorRGB = (Double3(pixelScreen.x, pixelScreen.y, pixelScreen.z) + (fogColor - Double3(pixelScreen.x, pixelScreen.y, pixelScreen.z)) * fogPercent).toRGB();
 
 			frame.colorBuffer[index] = colorRGB;
 			frame.depthBuffer[index] = depth;
@@ -3314,7 +3322,7 @@ void SoftwareRenderer::drawTransparentPixels(int x, const DrawRange &drawRange, 
 			{
 				// Texture color with shading.
 				const double shadingMax = 1.0;
-				double colorR = texel.r * std::min(shading.x + texel.emission, shadingMax);
+				/*double colorR = texel.r * std::min(shading.x + texel.emission, shadingMax);
 				double colorG = texel.g * std::min(shading.y + texel.emission, shadingMax);
 				double colorB = texel.b * std::min(shading.z + texel.emission, shadingMax);
 
@@ -3323,18 +3331,28 @@ void SoftwareRenderer::drawTransparentPixels(int x, const DrawRange &drawRange, 
 				colorG += (fogColor.y - colorG) * fogPercent;
 				colorB += (fogColor.z - colorB) * fogPercent;
 
-				/*if (shadingInfo.isBlinking)
+				if (shadingInfo.isBlinking)
 				{
 					colorR *= 1.5 + 0.5 * sin (yPercent + frames / 20.0);
 					colorG *= 1.5 + 0.5 * sin (yPercent + frames / 20.0);
 					colorB *= 1.5 + 0.5 * sin (yPercent + frames / 20.0);
 				}*/
 
-				const uint32_t colorRGB = material.shadedPixelScreen(Double3(colorR, colorG, colorB),
+				/*const uint32_t colorRGB = material.shadedPixelScreen(Double3(colorR, colorG, colorB),
 											Double2(u, v),
 											Double3(0.0, 0.0, 0.0), // @todo: add world position
 											normal,
-											frames);
+											frames);*/
+
+				const Double4 pixelScreen = material.shadedPixelScreen(Double3(texel.r, texel.g, texel.b),
+										Double3(texel.r, texel.g, texel.b) * texel.emission,
+										Double2(u, v),
+										Double3(0.0, 0.0, 0.0), // @todo: add world position
+										normal,
+										shading,
+										frames);
+
+				const uint32_t colorRGB =  (Double3(pixelScreen.x, pixelScreen.y, pixelScreen.z) + (fogColor - Double3(pixelScreen.x, pixelScreen.y, pixelScreen.z)) * fogPercent).toRGB();
 						
 				frame.colorBuffer[index] = colorRGB;
 				frame.depthBuffer[index] = depth;
@@ -5968,7 +5986,7 @@ void SoftwareRenderer::drawFlat(int startX, int endX, const Flat::Frame &flatFra
 				if (texel.a > 0.0)
 				{
 					// Texture color with shading.
-					const double shadingMax = 1.0;
+					/*const double shadingMax = 1.0;
 					double colorR = texel.r * std::min(shading.x, shadingMax);
 					double colorG = texel.g * std::min(shading.y, shadingMax);
 					double colorB = texel.b * std::min(shading.z, shadingMax);
@@ -5976,14 +5994,18 @@ void SoftwareRenderer::drawFlat(int startX, int endX, const Flat::Frame &flatFra
 					// Linearly interpolate with fog.
 					colorR += (fogColor.x - colorR) * fogPercent;
 					colorG += (fogColor.y - colorG) * fogPercent;
-					colorB += (fogColor.z - colorB) * fogPercent;
+					colorB += (fogColor.z - colorB) * fogPercent;*/
 
-					const uint32_t colorRGB = material.shadedPixelScreen(Double3(colorR, colorG, colorB),
-												Double2(u, v),
-												Double3(0.0, 0.0, 0.0), // @todo: add world position
-												normal, 
-												frames);
+					const Double4 pixelScreen = material.shadedPixelScreen(Double3(texel.r, texel.g, texel.b),
+											Double3(0.0, 0.0, 0.0),
+											Double2(u, v),
+											Double3(0.0, 0.0, 0.0), // @todo: add world position
+											normal,
+											shading,
+											frames);
 
+					const uint32_t colorRGB = (Double3(pixelScreen.x, pixelScreen.y, pixelScreen.z) + (fogColor - Double3(pixelScreen.x, pixelScreen.y, pixelScreen.z)) * fogPercent).toRGB();
+					
 					frame.colorBuffer[index] = colorRGB;
 					frame.depthBuffer[index] = depth;
 				}

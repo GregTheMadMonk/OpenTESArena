@@ -69,6 +69,7 @@ cmake_install.cmake
 # .swo and .swp (idk what it does)
 *.swo
 *.swp
+*.swn
 
 # my personal symlink to ARENA
 data/ARENA
