@@ -3,6 +3,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 // Settings found in the options menu are saved in this object, which should live in
 // the game state object since it persists for the lifetime of the program.

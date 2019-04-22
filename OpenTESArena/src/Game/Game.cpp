@@ -29,6 +29,9 @@
 
 Game::Game()
 {
+	consoleManager.setGame(this);
+	Debug::consoleManager = &this->consoleManager;
+
 	DebugMention("Initializing (Platform: " + Platform::getPlatform() + ").");
 
 	// Get the current working directory. This is most relevant for platforms
@@ -137,6 +140,11 @@ AudioManager &Game::getAudioManager()
 InputManager &Game::getInputManager()
 {
 	return this->inputManager;
+}
+
+ConsoleManager &Game::getConsoleManager()
+{
+	return this->consoleManager;
 }
 
 FontManager &Game::getFontManager()
