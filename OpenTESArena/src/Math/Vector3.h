@@ -78,6 +78,7 @@ public:
 
 	std::string toString() const;
 	uint32_t toRGB() const;
+	uint32_t toRGBSafe() const;
 	double getYAngleRadians() const;
 	T lengthSquared() const;
 	T length() const;

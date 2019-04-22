@@ -88,7 +88,7 @@ Double4 RenderMaterial::shadedPixelBase(const Double3 &texColor, const Double2 &
 	// Result is Double4(Red, Green, Blue, Opacity)
 	if (this->shaderBase == nullptr) return Double4(0.0, 0.0, 0.0, 1.0);
 
-	const Double3 res = [this, texColor, texCoord, worldPosition, worldNormal, shading, time]()
+	const Double3 res = [this, &texColor, &texCoord, &worldPosition, &worldNormal, &shading, &time]()
 	{
 		const Double3 base = this->shaderBase(texColor, texCoord, worldPosition, worldNormal, time);
 		return Double3(base.x * std::min(shading.x, 1.0),
@@ -151,13 +151,13 @@ Double4 RenderMaterial::shadedPixelScreen(const Double3 &baseColor, const Double
 	if (this->domain == MaterialDomain::Unlit)
 		return this->shadedPixelEmission(baseColor, emissiveColor, texCoord, worldPosition, worldNormal, time);
 
-	const Double4 emission = [this, baseColor, emissiveColor, texCoord, worldPosition, worldNormal, time]()
+	const Double4 emission = [this, &baseColor, &emissiveColor, &texCoord, &worldPosition, &worldNormal, &time]()
 	{
 		if (this->shaderEmission == nullptr) return Double4(0.0, 0.0, 0.0, 1.0);
 		return this->shadedPixelEmission(baseColor, emissiveColor, texCoord, worldPosition, worldNormal, time);
 	}();
 
-	const Double4 base = [this, baseColor, texCoord, worldPosition, worldNormal, shading, time]()
+	const Double4 base = [this, &baseColor, &texCoord, &worldPosition, &worldNormal, &shading, &time]()
 	{
 		if (this->shaderBase == nullptr) Double4(0.0, 0.0, 0.0, 1.0);
 		return this->shadedPixelBase(baseColor, texCoord, worldPosition, worldNormal, shading, time);

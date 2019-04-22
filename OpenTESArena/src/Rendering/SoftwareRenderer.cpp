@@ -289,10 +289,11 @@ const Double3 &SoftwareRenderer::ShadingInfo::getFogColor() const
 	return this->skyColors.front();
 }
 
-SoftwareRenderer::FrameView::FrameView(uint32_t *colorBuffer, double *depthBuffer, 
+SoftwareRenderer::FrameView::FrameView(uint32_t *colorBuffer, uint32_t *emissionBuffer, double *depthBuffer, 
 	int width, int height)
 {
 	this->colorBuffer = colorBuffer;
+	this->emissionBuffer = emissionBuffer;
 	this->depthBuffer = depthBuffer;
 	this->width = width;
 	this->height = height;
@@ -678,6 +679,7 @@ void SoftwareRenderer::init(int width, int height, int renderThreadsMode)
 {
 	// Initialize 2D frame buffer.
 	const int pixelCount = width * height;
+	this->emissionBuffer = std::vector<uint32_t>(pixelCount, std::numeric_limits<uint32_t>::infinity());
 	this->depthBuffer = std::vector<double>(pixelCount,
 		std::numeric_limits<double>::infinity());
 
@@ -3132,16 +3134,6 @@ void SoftwareRenderer::drawPixels(int x, const DrawRange &drawRange, double dept
 			const VoxelTexel &texel = texture.texels[textureIndex];
 
 			// Texture color with shading.
-			/*const double shadingMax = 1.0;
-			double colorR = texel.r * std::min(shading.x + texel.emission, shadingMax);
-			double colorG = texel.g * std::min(shading.y + texel.emission, shadingMax);
-			double colorB = texel.b * std::min(shading.z + texel.emission, shadingMax);
-
-			// Linearly interpolate with fog.
-			colorR += (fogColor.x - colorR) * fogPercent;
-			colorG += (fogColor.y - colorG) * fogPercent;
-			colorB += (fogColor.z - colorB) * fogPercent;*/
-
 			const Double4 pixelScreen = material.shadedPixelScreen(Double3(texel.r, texel.g, texel.b),
 										Double3(texel.r, texel.g, texel.b) * texel.emission,
 										Double2(u, v),
@@ -3151,9 +3143,16 @@ void SoftwareRenderer::drawPixels(int x, const DrawRange &drawRange, double dept
 										frames);
 
 			const uint32_t colorRGB = (Double3(pixelScreen.x, pixelScreen.y, pixelScreen.z) + (fogColor - Double3(pixelScreen.x, pixelScreen.y, pixelScreen.z)) * fogPercent).toRGB();
+			const uint32_t emission = material.shadedPixelEmission(Double3(texel.r, texel.g, texel.b),
+										Double3(texel.r, texel.g, texel.b) * texel.emission,
+										Double2(u, v),
+										Double3(0.0, 0.0, 0.0),
+										normal,
+										frames).toARGB();
 	
 			frame.colorBuffer[index] = colorRGB;
 			frame.depthBuffer[index] = depth;
+			frame.emissionBuffer[index] = emission;
 		}
 	}
 }
@@ -3237,16 +3236,6 @@ void SoftwareRenderer::drawPerspectivePixels(int x, const DrawRange &drawRange,
 			const VoxelTexel &texel = texture.texels[textureIndex];
 
 			// Texture color with shading.
-			/*const double shadingMax = 1.0;
-			double colorR = texel.r * std::min(shading.x + texel.emission, shadingMax);
-			double colorG = texel.g * std::min(shading.y + texel.emission, shadingMax);
-			double colorB = texel.b * std::min(shading.z + texel.emission, shadingMax);
-
-			// Linearly interpolate with fog.
-			colorR += (fogColor.x - colorR) * fogPercent;
-			colorG += (fogColor.y - colorG) * fogPercent;
-			colorB += (fogColor.z - colorB) * fogPercent;*/
-
 			const Double4 pixelScreen = material.shadedPixelScreen(Double3(texel.r, texel.g, texel.b),
 										Double3(texel.r, texel.g, texel.b) * texel.emission,
 										Double2(u, v),
@@ -3256,9 +3245,16 @@ void SoftwareRenderer::drawPerspectivePixels(int x, const DrawRange &drawRange,
 										frames);
 
 			const uint32_t colorRGB = (Double3(pixelScreen.x, pixelScreen.y, pixelScreen.z) + (fogColor - Double3(pixelScreen.x, pixelScreen.y, pixelScreen.z)) * fogPercent).toRGB();
+			const uint32_t emission = material.shadedPixelEmission(Double3(texel.r, texel.g, texel.b),
+										Double3(texel.r, texel.g, texel.b) * texel.emission,
+										Double2(u, v),
+										Double3(0.0, 0.0, 0.0),
+										normal,	
+										frames).toARGB();
 
 			frame.colorBuffer[index] = colorRGB;
 			frame.depthBuffer[index] = depth;
+			frame.emissionBuffer[index] = emission;
 		}
 	}
 }
@@ -3321,29 +3317,6 @@ void SoftwareRenderer::drawTransparentPixels(int x, const DrawRange &drawRange, 
 			if (!texel.transparent)
 			{
 				// Texture color with shading.
-				const double shadingMax = 1.0;
-				/*double colorR = texel.r * std::min(shading.x + texel.emission, shadingMax);
-				double colorG = texel.g * std::min(shading.y + texel.emission, shadingMax);
-				double colorB = texel.b * std::min(shading.z + texel.emission, shadingMax);
-
-				// Linearly interpolate with fog.
-				colorR += (fogColor.x - colorR) * fogPercent;
-				colorG += (fogColor.y - colorG) * fogPercent;
-				colorB += (fogColor.z - colorB) * fogPercent;
-
-				if (shadingInfo.isBlinking)
-				{
-					colorR *= 1.5 + 0.5 * sin (yPercent + frames / 20.0);
-					colorG *= 1.5 + 0.5 * sin (yPercent + frames / 20.0);
-					colorB *= 1.5 + 0.5 * sin (yPercent + frames / 20.0);
-				}*/
-
-				/*const uint32_t colorRGB = material.shadedPixelScreen(Double3(colorR, colorG, colorB),
-											Double2(u, v),
-											Double3(0.0, 0.0, 0.0), // @todo: add world position
-											normal,
-											frames);*/
-
 				const Double4 pixelScreen = material.shadedPixelScreen(Double3(texel.r, texel.g, texel.b),
 										Double3(texel.r, texel.g, texel.b) * texel.emission,
 										Double2(u, v),
@@ -3353,9 +3326,15 @@ void SoftwareRenderer::drawTransparentPixels(int x, const DrawRange &drawRange, 
 										frames);
 
 				const uint32_t colorRGB =  (Double3(pixelScreen.x, pixelScreen.y, pixelScreen.z) + (fogColor - Double3(pixelScreen.x, pixelScreen.y, pixelScreen.z)) * fogPercent).toRGB();
-						
+				const uint32_t emission = material.shadedPixelEmission(Double3(texel.r, texel.g, texel.b),
+											Double3(texel.r, texel.g, texel.b) * texel.emission,
+											Double2(u, v),
+											Double3(0.0, 0.0, 0.0),
+											normal,
+											frames).toARGB();
 				frame.colorBuffer[index] = colorRGB;
 				frame.depthBuffer[index] = depth;
+				frame.emissionBuffer[index] = emission;
 			}
 		}
 	}
@@ -5986,16 +5965,6 @@ void SoftwareRenderer::drawFlat(int startX, int endX, const Flat::Frame &flatFra
 				if (texel.a > 0.0)
 				{
 					// Texture color with shading.
-					/*const double shadingMax = 1.0;
-					double colorR = texel.r * std::min(shading.x, shadingMax);
-					double colorG = texel.g * std::min(shading.y, shadingMax);
-					double colorB = texel.b * std::min(shading.z, shadingMax);
-
-					// Linearly interpolate with fog.
-					colorR += (fogColor.x - colorR) * fogPercent;
-					colorG += (fogColor.y - colorG) * fogPercent;
-					colorB += (fogColor.z - colorB) * fogPercent;*/
-
 					const Double4 pixelScreen = material.shadedPixelScreen(Double3(texel.r, texel.g, texel.b),
 											Double3(0.0, 0.0, 0.0),
 											Double2(u, v),
@@ -6538,7 +6507,7 @@ void SoftwareRenderer::render(const Double3 &eye, const Double3 &direction, doub
 	// values together.
 	const ShadingInfo shadingInfo(this->skyPalette, daytimePercent, latitude,
 		ambient, this->fogDistance);
-	const FrameView frame(colorBuffer, this->depthBuffer.data(), this->width, this->height);
+	const FrameView frame(colorBuffer, this->emissionBuffer.data(), this->depthBuffer.data(), this->width, this->height);
 
 	// Projected Y range of the sky gradient.
 	double gradientProjYTop, gradientProjYBottom;
@@ -6609,4 +6578,34 @@ void SoftwareRenderer::render(const Double3 &eye, const Double3 &direction, doub
 	{
 		return this->threadData.flats.threadsDone == this->threadData.totalThreads;
 	});
+
+	// Apply post processing effects
+	// Bloom (performance is terrible, but it shows what could be done with emmission buffer)
+	// Disabled for now, because FPS with it is literally 15 an a dungeon
+	/*const double bloomStrength = 0.1;
+	const int blendPixels = 10;
+
+	auto blend = [](const uint32_t &color1, const uint32_t &color2, const double &blend)
+	{
+		const Double3 vColor1 = Double3::fromRGB(color1);
+		Double3 vColor2 = Double3::fromRGB(color2);
+		vColor2 = vColor2 / std::max(vColor2.x, std::max(vColor2.y, vColor2.z));
+		return (vColor1 * (1 - blend) + vColor2 * blend).toRGBSafe();
+	};
+
+	for (int i = 0; i < this->width * this->height; i++)
+	{
+		const uint32_t emissionColor = emissionBuffer[i];
+		const uint8_t  emissionIntensity = static_cast<uint8_t>((emissionColor & 0xff000000) >> 24);
+		const uint8_t emissionMod = ((static_cast<uint8_t>(emissionColor & 0x00ff0000) >> 16) +
+					(static_cast<uint8_t>(emissionColor & 0x0000ff00) >> 8) +
+					(static_cast<uint8_t>(emissionColor & 0x000000ff))) * emissionIntensity;
+
+		if (emissionMod > 0) for (int j = 1; (i - j >= 0) && (i + j < this->width * this->height) && (j < blendPixels); j++)
+		{
+			const double blendScale = std::max(emissionColor & 0x00ff0000 >> 16, std::max(emissionColor & 0x0000ff00 >> 8, emissionColor & 0x000000ff)) / 255.0 * bloomStrength;
+			colorBuffer[i - j] = blend(colorBuffer[i - j], emissionColor, blendScale);
+			colorBuffer[i + j] = blend(colorBuffer[i + j], emissionColor, blendScale);
+		}
+	}*/
 }

@@ -194,11 +194,12 @@ private:
 	struct FrameView
 	{
 		uint32_t *colorBuffer;
+		uint32_t *emissionBuffer;
 		double *depthBuffer;
 		int width, height;
 		double widthReal, heightReal;
 
-		FrameView(uint32_t *colorBuffer, double *depthBuffer, int width, int height);
+		FrameView(uint32_t *colorBuffer, uint32_t *emissionBuffer, double *depthBuffer, int width, int height);
 	};
 
 	// A flat is a 2D surface always facing perpendicular to the Y axis, and opposite to
@@ -415,6 +416,7 @@ private:
 	static const RenderMaterial lavaMaterial;
 	static const RenderMaterial voidMaterial;
 
+	std::vector<uint32_t> emissionBuffer; // 2D buffer, contains emission overlay
 	std::vector<double> depthBuffer; // 2D buffer, mostly consists of depth in the XZ plane.
 	std::vector<OcclusionData> occlusion; // Min and max Y for each column.
 	std::unordered_map<int, Flat> flats; // All flats in world.

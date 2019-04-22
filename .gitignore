@@ -66,10 +66,8 @@ cmake_install.cmake
 # Files Intellij CLion
 .idea/
 
-# .swo and .swp (idk what it does)
-*.swo
-*.swp
-*.swn
+# .sw* files (idk what it does)
+*.sw*
 
 # my personal symlink to ARENA
 data/ARENA

@@ -232,6 +232,15 @@ uint32_t Vector3f<T>::toRGB() const
 }
 
 template <typename T>
+uint32_t Vector3f<T>::toRGBSafe() const
+{
+	return static_cast<uint32_t>(
+		((static_cast<uint8_t>((this->x > 1.0)?1.0:this->x * 255.0)) << 16) |
+		((static_cast<uint8_t>((this->y > 1.0)?1.0:this->y * 255.0)) << 8) |
+		((static_cast<uint8_t>((this->z > 1.0)?1.0:this->z * 255.0))));
+}
+
+template <typename T>
 double Vector3f<T>::getYAngleRadians() const
 {
 	// Get the length of the direction vector's projection onto the XZ plane.
