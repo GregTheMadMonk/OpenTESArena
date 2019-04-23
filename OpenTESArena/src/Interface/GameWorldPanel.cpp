@@ -609,7 +609,7 @@ void GameWorldPanel::handleEvent(const SDL_Event &e)
 	}
 	else if (tildaPressed)
 	{
-		DebugWarning("Entering console");
+		// Enter console
 		game.setPanel<ConsolePanel>(game);
 	}
 

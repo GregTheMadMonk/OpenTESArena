@@ -74,7 +74,7 @@ void ConsolePanel::render(Renderer &renderer)
 	const Int2 center(centerCoordX, 15);
 
 	const RichTextString richText(
-		">" + this->buffer,
+		">" + this->buffer + " ",
 		FontName::Char,
 		Color::Yellow,
 		TextAlignment::Center, // Left acts as Center too for me for no reason
