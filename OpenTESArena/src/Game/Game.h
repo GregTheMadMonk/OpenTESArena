@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "ConsoleManager.h"
 #include "GameData.h"
 #include "InputManager.h"
 #include "Options.h"
@@ -39,6 +40,7 @@ private:
 
 	AudioManager audioManager;
 	InputManager inputManager;
+	ConsoleManager consoleManager;
 	FontManager fontManager;
 	std::unique_ptr<GameData> gameData;
 	Options options;
@@ -87,6 +89,9 @@ public:
 	// Gets the input manager for obtaining input state. This should be read-only for
 	// all classes except the Game class.
 	InputManager &getInputManager();
+
+	// Gets the console manager for writing to console
+	ConsoleManager &getConsoleManager();
 
 	// Gets the font manager object for creating text with.
 	FontManager &getFontManager();

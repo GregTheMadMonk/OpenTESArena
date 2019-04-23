@@ -8,6 +8,8 @@
 // that should be accompanied with messages and logging. Plain old asserts like 
 // "assert(width > 0)" are for sanity checks and don't need to use these heavier methods.
 
+class ConsoleManager;
+
 class Debug
 {
 public:
@@ -17,6 +19,8 @@ public:
 		Warning,
 		Error
 	};
+
+	static ConsoleManager *consoleManager;
 private:
 	static const std::string LOG_FILENAME;
 

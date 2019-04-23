@@ -7,6 +7,7 @@
 #include "AutomapPanel.h"
 #include "CharacterPanel.h"
 #include "CursorAlignment.h"
+#include "ConsolePanel.h"
 #include "GameWorldPanel.h"
 #include "LogbookPanel.h"
 #include "PauseMenuPanel.h"
@@ -595,6 +596,7 @@ void GameWorldPanel::handleEvent(const SDL_Event &e)
 	const auto &inputManager = game.getInputManager();
 	const bool escapePressed = inputManager.keyPressed(e, SDLK_ESCAPE);
 	const bool f4Pressed = inputManager.keyPressed(e, SDLK_F4);
+	const bool tildaPressed = inputManager.keyPressed(e, SDLK_BACKQUOTE);
 
 	if (escapePressed)
 	{
@@ -604,6 +606,11 @@ void GameWorldPanel::handleEvent(const SDL_Event &e)
 	{
 		// Toggle debug display.
 		options.setMisc_ShowDebug(!options.getMisc_ShowDebug());
+	}
+	else if (tildaPressed)
+	{
+		// Enter console
+		game.setPanel<ConsolePanel>(game);
 	}
 
 	// Listen for hotkeys.

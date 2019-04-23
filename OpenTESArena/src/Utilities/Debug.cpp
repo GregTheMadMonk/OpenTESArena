@@ -7,6 +7,7 @@
 
 #include "Debug.h"
 #include "String.h"
+#include "../Game/ConsoleManager.h"
 
 namespace
 {
@@ -19,6 +20,7 @@ namespace
 }
 
 const std::string Debug::LOG_FILENAME = "log.txt";
+ConsoleManager *Debug::consoleManager = nullptr;
 
 std::string Debug::getShorterPath(const char *__file__)
 {
@@ -44,8 +46,11 @@ void Debug::write(Debug::MessageType type, const std::string &filePath,
 	int lineNumber, const std::string &message)
 {
 	const std::string &messageType = DebugMessageTypeNames.at(type);
-	std::cerr << "[" << filePath << "(" << std::to_string(lineNumber) << ")] " <<
-		messageType << message << "\n";
+	const std::string output = "[" + filePath + "(" + std::to_string(lineNumber) + ")] " +
+		messageType + message + "\n";
+
+	std::cerr << output;
+	if (consoleManager != nullptr) consoleManager->putString(output);
 }
 
 void Debug::mention(const char *__file__, int lineNumber, const std::string &message)
