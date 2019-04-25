@@ -433,6 +433,7 @@ private:
 	double fogDistance; // Distance at which fog is maximum.
 	int width, height; // Dimensions of frame buffer.
 	int renderThreadsMode; // Determines number of threads to use for rendering.
+	uint32_t renderParams; // render parameters. 32 parameters is enough for everyone!
 
 	// Gets the number of render threads to use based on the given mode.
 	static int getRenderThreadsFromMode(int mode);
@@ -676,6 +677,9 @@ public:
 	// Sets the render threads mode to use (low, medium, high, etc.).
 	void setRenderThreadsMode(int mode);
 
+	// Sets render params int
+	void setRenderParams(uint32_t renderParams);
+
 	// Adds a flat. Causes an error if the ID exists.
 	void addFlat(int id, const Double3 &position, double width, double height, int textureID);
 
@@ -727,7 +731,7 @@ public:
 
 	// Initializes software renderer with the given frame buffer dimensions. This can be called
 	// on first start or to reset the software renderer.
-	void init(int width, int height, int renderThreadsMode);
+	void init(int width, int height, int renderThreadsMode, uint32_t renderParams);
 
 	// Resizes the frame buffer and related values.
 	void resize(int width, int height);

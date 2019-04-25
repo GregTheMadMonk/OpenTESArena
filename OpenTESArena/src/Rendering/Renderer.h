@@ -49,6 +49,7 @@ private:
 	SoftwareRenderer softwareRenderer; // Game world renderer.
 	int letterboxMode; // Determines aspect ratio of the original UI (16:10, 4:3, etc.).
 	bool fullGameWindow; // Determines height of 3D frame buffer.
+	uint32_t renderParams; // Render parameters (flags)
 
 	// Helper method for making a renderer context.
 	static SDL_Renderer *createRenderer(SDL_Window *window);
@@ -108,7 +109,7 @@ public:
 	SDL_Texture *createTexture(uint32_t format, int access, int w, int h);
 	SDL_Texture *createTextureFromSurface(SDL_Surface *surface);
 
-	void init(int width, int height, bool fullscreen, int letterboxMode);
+	void init(int width, int height, bool fullscreen, int letterboxMode, uint32_t renderParams);
 
 	// Resizes the renderer dimensions.
 	void resize(int width, int height, double resolutionScale, bool fullGameWindow);
@@ -141,6 +142,10 @@ public:
 
 	// Sets which mode to use for software render threads (low, medium, high, etc.).
 	void setRenderThreadsMode(int mode);
+
+	// Sets renderer parameters
+	void setRenderParams(uint32_t renderParams);
+	void setRenderParam(uint32_t mask, bool value);
 
 	// Helper methods for changing data in the 3D renderer. Some data, like the voxel
 	// grid, are passed each frame by reference.

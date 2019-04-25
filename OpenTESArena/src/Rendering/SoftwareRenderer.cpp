@@ -3,6 +3,7 @@
 #include <cmath>
 #include <limits>
 
+#include "RenderParams.h"
 #include "SoftwareRenderer.h"
 #include "Surface.h"
 #include "../Math/Constants.h"
@@ -675,7 +676,7 @@ bool SoftwareRenderer::isInited() const
 	return (this->width > 0) && (this->height > 0);
 }
 
-void SoftwareRenderer::init(int width, int height, int renderThreadsMode)
+void SoftwareRenderer::init(int width, int height, int renderThreadsMode, uint32_t renderParams)
 {
 	// Initialize 2D frame buffer.
 	const int pixelCount = width * height;
@@ -703,6 +704,8 @@ void SoftwareRenderer::init(int width, int height, int renderThreadsMode)
 	// Initialize render threads.
 	const int threadCount = SoftwareRenderer::getRenderThreadsFromMode(renderThreadsMode);
 	this->initRenderThreads(width, height, threadCount);
+
+	this->renderParams = renderParams;
 }
 
 void SoftwareRenderer::setRenderThreadsMode(int mode)
@@ -712,6 +715,11 @@ void SoftwareRenderer::setRenderThreadsMode(int mode)
 	// Re-initialize render threads.
 	const int threadCount = SoftwareRenderer::getRenderThreadsFromMode(renderThreadsMode);
 	this->initRenderThreads(this->width, this->height, threadCount);
+}
+
+void SoftwareRenderer::setRenderParams(uint32_t renderParams)
+{
+	this->renderParams = renderParams;
 }
 
 void SoftwareRenderer::addFlat(int id, const Double3 &position, double width, 
@@ -6580,32 +6588,36 @@ void SoftwareRenderer::render(const Double3 &eye, const Double3 &direction, doub
 	});
 
 	// Apply post processing effects
-	// Bloom (performance is terrible, but it shows what could be done with emmission buffer)
-	// Disabled for now, because FPS with it is literally 15 an a dungeon
-	/*const double bloomStrength = 0.1;
-	const int blendPixels = 10;
-
-	auto blend = [](const uint32_t &color1, const uint32_t &color2, const double &blend)
+	if ((this->renderParams & RenderParams::PostProcessing) != 0)
 	{
-		const Double3 vColor1 = Double3::fromRGB(color1);
-		Double3 vColor2 = Double3::fromRGB(color2);
-		vColor2 = vColor2 / std::max(vColor2.x, std::max(vColor2.y, vColor2.z));
-		return (vColor1 * (1 - blend) + vColor2 * blend).toRGBSafe();
-	};
+		if ((this->renderParams & RenderParams::Bloom) != 0)
+		{ // Bloom. Performance is terrible, acts more like a proof of concept
+			const double bloomStrength = 0.1;
+			const int blendPixels = 10;
 
-	for (int i = 0; i < this->width * this->height; i++)
-	{
-		const uint32_t emissionColor = emissionBuffer[i];
-		const uint8_t  emissionIntensity = static_cast<uint8_t>((emissionColor & 0xff000000) >> 24);
-		const uint8_t emissionMod = ((static_cast<uint8_t>(emissionColor & 0x00ff0000) >> 16) +
-					(static_cast<uint8_t>(emissionColor & 0x0000ff00) >> 8) +
-					(static_cast<uint8_t>(emissionColor & 0x000000ff))) * emissionIntensity;
+			auto blend = [](const uint32_t &color1, const uint32_t &color2, const double &blend)
+			{
+				const Double3 vColor1 = Double3::fromRGB(color1);
+				Double3 vColor2 = Double3::fromRGB(color2);
+				vColor2 = vColor2 / std::max(vColor2.x, std::max(vColor2.y, vColor2.z));
+				return (vColor1 * (1 - blend) + vColor2 * blend).toRGBSafe();
+			};
 
-		if (emissionMod > 0) for (int j = 1; (i - j >= 0) && (i + j < this->width * this->height) && (j < blendPixels); j++)
-		{
-			const double blendScale = std::max(emissionColor & 0x00ff0000 >> 16, std::max(emissionColor & 0x0000ff00 >> 8, emissionColor & 0x000000ff)) / 255.0 * bloomStrength;
-			colorBuffer[i - j] = blend(colorBuffer[i - j], emissionColor, blendScale);
-			colorBuffer[i + j] = blend(colorBuffer[i + j], emissionColor, blendScale);
+			for (int i = 0; i < this->width * this->height; i++)
+			{
+				const uint32_t emissionColor = emissionBuffer[i];
+				const uint8_t  emissionIntensity = static_cast<uint8_t>((emissionColor & 0xff000000) >> 24);
+				const uint8_t emissionMod = ((static_cast<uint8_t>(emissionColor & 0x00ff0000) >> 16) +
+							(static_cast<uint8_t>(emissionColor & 0x0000ff00) >> 8) +
+							(static_cast<uint8_t>(emissionColor & 0x000000ff))) * emissionIntensity;
+
+				if (emissionMod > 0) for (int j = 1; (i - j >= 0) && (i + j < this->width * this->height) && (j < blendPixels); j++)
+				{
+					const double blendScale = std::max(emissionColor & 0x00ff0000 >> 16, std::max(emissionColor & 0x0000ff00 >> 8, emissionColor & 0x000000ff)) / 255.0 * bloomStrength;
+					colorBuffer[i - j] = blend(colorBuffer[i - j], emissionColor, blendScale);
+					colorBuffer[i + j] = blend(colorBuffer[i + j], emissionColor, blendScale);
+				}
+			}
 		}
-	}*/
+	}
 }

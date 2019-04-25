@@ -19,6 +19,7 @@
 #include "../Media/MusicName.h"
 #include "../Media/TextureManager.h"
 #include "../Rendering/Renderer.h"
+#include "../Rendering/RenderParams.h"
 #include "../Rendering/Surface.h"
 #include "../Utilities/Debug.h"
 #include "../Utilities/File.h"
@@ -81,10 +82,16 @@ Game::Game()
 		this->options.getAudio_SoundVolume(), this->options.getAudio_SoundChannels(),
 		this->options.getAudio_SoundResampling(), midiPath);
 
+	// Construct render params
+	uint32_t renderParams = 0;
+	if (options.getGraphics_PostProcessing()) renderParams |= RenderParams::PostProcessing;
+	if (options.getGraphics_PostProcessingBloom()) renderParams |= RenderParams::Bloom;
+
 	// Initialize the SDL renderer and window with the given settings.
 	this->renderer.init(this->options.getGraphics_ScreenWidth(),
 		this->options.getGraphics_ScreenHeight(), this->options.getGraphics_Fullscreen(),
-		this->options.getGraphics_LetterboxMode());
+		this->options.getGraphics_LetterboxMode(),
+		renderParams);
 
 	// Initialize the texture manager.
 	this->textureManager.init();

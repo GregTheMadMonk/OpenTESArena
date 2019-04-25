@@ -300,7 +300,7 @@ SDL_Texture *Renderer::createTextureFromSurface(SDL_Surface *surface)
 	return SDL_CreateTextureFromSurface(this->renderer, surface);
 }
 
-void Renderer::init(int width, int height, bool fullscreen, int letterboxMode)
+void Renderer::init(int width, int height, bool fullscreen, int letterboxMode, uint32_t renderParams)
 {
 	DebugMention("Initializing.");
 
@@ -358,6 +358,8 @@ void Renderer::init(int width, int height, bool fullscreen, int letterboxMode)
 	// Don't initialize the game world buffer until the 3D renderer is initialized.
 	this->gameWorldTexture = nullptr;
 	this->fullGameWindow = false;
+
+	this->renderParams = renderParams;
 }
 
 void Renderer::resize(int width, int height, double resolutionScale, bool fullGameWindow)
@@ -465,13 +467,26 @@ void Renderer::initializeWorldRendering(double resolutionScale, bool fullGameWin
 		"Couldn't create game world texture, " + std::string(SDL_GetError()));
 
 	// Initialize 3D rendering.
-	this->softwareRenderer.init(renderWidth, renderHeight, renderThreadsMode);
+	this->softwareRenderer.init(renderWidth, renderHeight, renderThreadsMode, this->renderParams);
 }
 
 void Renderer::setRenderThreadsMode(int mode)
 {
 	assert(this->softwareRenderer.isInited());
 	this->softwareRenderer.setRenderThreadsMode(mode);
+}
+
+void Renderer::setRenderParams(uint32_t renderParams)
+{
+	assert(this->softwareRenderer.isInited());
+	this->renderParams = renderParams;
+	this->softwareRenderer.setRenderParams(renderParams);
+}
+
+void Renderer::setRenderParam(uint32_t mask, bool value)
+{
+	const uint32_t newParams = (renderParams & ~mask) | (value?mask:0);
+	setRenderParams(newParams);
 }
 
 void Renderer::addFlat(int id, const Double3 &position, double width, 

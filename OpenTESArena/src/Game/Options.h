@@ -144,6 +144,9 @@ void set##section##_##name(const std::string &value) \
 	OPTION_DOUBLE(Graphics, CursorScale)
 	OPTION_BOOL(Graphics, ModernInterface)
 	OPTION_INT(Graphics, RenderThreadsMode)
+	// Post processing section
+	OPTION_BOOL(Graphics, PostProcessing)
+	OPTION_BOOL(Graphics, PostProcessingBloom)
 
 	OPTION_DOUBLE(Audio, MusicVolume)
 	OPTION_DOUBLE(Audio, SoundVolume)

@@ -39,6 +39,10 @@ ModernInterface=false
 # 0: very low, 1: low, 2: medium, 3: high, 4: very high, 5: max
 RenderThreadsMode=4
 
+# Post processing section
+PostProcessing=true
+PostProcessingBloom=false
+
 [Audio]
 MusicVolume=0.50
 SoundVolume=0.50

@@ -3,6 +3,7 @@
 #include "SDL.h"
 
 #include "Game.h"
+#include "../Rendering/RenderParams.h"
 #include "../Utilities/Debug.h"
 
 #define CVAR_OPTIONS_BOOL(cvar_name, option_name, additional_lines) \
@@ -152,6 +153,10 @@ ConsoleManager::ConsoleManager()
 	);
 
 	CVAR_OPTIONS_INT(r_threads_mode, Graphics_RenderThreadsMode, game->getRenderer().setRenderThreadsMode(r_threads_mode));
+
+	CVAR_OPTIONS_BOOL(r_post_processing, Graphics_PostProcessing, game->getRenderer().setRenderParam(RenderParams::PostProcessing, r_post_processing == 1));
+
+	CVAR_OPTIONS_BOOL(r_bloom, Graphics_PostProcessingBloom, game->getRenderer().setRenderParam(RenderParams::Bloom, r_bloom == 1));
 
 	// Audio cvars	
 	CVAR_OPTIONS_DOUBLE(a_music_volume, Audio_MusicVolume, game->getAudioManager().setMusicVolume(game->getOptions().getAudio_MusicVolume()));

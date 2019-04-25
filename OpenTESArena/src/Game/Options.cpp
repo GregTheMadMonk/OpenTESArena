@@ -27,7 +27,9 @@ namespace
 		{ "LetterboxMode", OptionType::Int },
 		{ "CursorScale", OptionType::Double },
 		{ "ModernInterface", OptionType::Bool },
-		{ "RenderThreadsMode", OptionType::Int }
+		{ "RenderThreadsMode", OptionType::Int },
+		{ "PostProcessing", OptionType::Bool },
+		{ "PostProcessingBloom", OptionType::Bool }
 	};
 
 	const std::vector<std::pair<std::string, OptionType>> AudioMappings =
