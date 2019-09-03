@@ -1147,6 +1147,7 @@ void SoftwareRenderer::updateVisibleDistantObjects(bool parallaxSky,
 
 				return (xAngleRadiansLeft >= cameraAngleRight) &&
 					(xAngleRadiansRight <= cameraAngleLeft);
+				//return true;
 			}();
 
 			if (onScreen)

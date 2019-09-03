@@ -94,8 +94,8 @@ const double Options::MIN_VOLUME = 0.0;
 const double Options::MAX_VOLUME = 1.0;
 const int Options::MIN_SOUND_CHANNELS = 1;
 const int Options::RESAMPLING_OPTION_COUNT = 4;
-const double Options::MIN_TIME_SCALE = 0.50;
-const double Options::MAX_TIME_SCALE = 1.0;
+const double Options::MIN_TIME_SCALE = 0.05;
+const double Options::MAX_TIME_SCALE = 5.0;
 const int Options::MIN_STAR_DENSITY_MODE = 0;
 const int Options::MAX_STAR_DENSITY_MODE = 2;
 
